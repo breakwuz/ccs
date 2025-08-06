@@ -17,14 +17,36 @@ A command-line tool for managing multiple Claude API configurations. Easily swit
 
 ## Installation
 
+### One-liner Installation (Recommended)
+
 ```bash
-# Install to system directory
+# System installation (recommended)
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+
+# User installation (no sudo required)
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+install -D -m 755 /dev/stdin ~/bin/ccs && export PATH="$PATH:~/bin"
+
+# Using wget (alternative option)
+wget -qO- https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+```
+
+### Manual Installation
+
+```bash
+# Download script
+wget https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh
+
+# Install to system directory (recommended)
 sudo install -m 755 ccs.sh /usr/local/bin/ccs
 
-# Copy default template (new format, default)
-cp settings.json.default ~/.claude/settings.json.default
-# Or traditional format
-cp settings-default.json ~/.claude/settings-default.json
+# Or install to user directory (no sudo required)
+mkdir -p ~/bin
+install -m 755 ccs.sh ~/bin/ccs
+# Ensure ~/bin is in PATH
+export PATH="$PATH:~/bin"
 ```
 
 ## Usage

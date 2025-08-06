@@ -21,6 +21,21 @@ REPOSITORY_URL="https://github.com/shuiyihan12/ccs"
 LICENSE="MIT"
 SEPARATOR_LINE="────────────────────────────────────────────────"
 
+# 默认模板内容 (Default template content)
+DEFAULT_TEMPLATE_CONTENT='{
+  "env": {
+    "ANTHROPIC_API_KEY": "your_api_key_here",
+    "ANTHROPIC_BASE_URL": "your_base_url_here",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
+    "DISABLE_TELEMETRY": 1
+  },
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [],
+    "deny": []
+  }
+}'
+
 # 颜色常量 (Colors)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -80,6 +95,22 @@ get_default_file_path() {
             echo "$CLAUDE_DIR/settings.json.default"
             ;;
     esac
+}
+
+# 创建默认模板文件
+# Create default template file
+create_default_template() {
+    local default_file_path="$(get_default_file_path)"
+    
+    # 创建目录（如果不存在）
+    # Create directory if it doesn't exist
+    mkdir -p "$CLAUDE_DIR"
+    
+    # 创建默认模板文件
+    # Create default template file
+    echo "$DEFAULT_TEMPLATE_CONTENT" > "$default_file_path"
+    
+    return 0
 }
 
 # 通用错误消息函数
@@ -319,19 +350,6 @@ first_time_setup() {
         echo "$SEPARATOR_LINE"
         echo ""
         
-        # 检查是否存在默认模板文件
-        # Check if default template file exists
-        if [[ ! -f "$(get_default_file_path)" ]]; then
-            echo "警告：未找到默认模板文件 $(basename "$(get_default_file_path)")"
-            echo "Warning: Default template file $(basename "$(get_default_file_path)") not found"
-            echo "请确保已正确安装 CCS 工具"
-            echo "Please ensure CCS tool is properly installed"
-            echo ""
-            echo "继续设置语言偏好..."
-            echo "Continue with language preference setup..."
-            echo ""
-        fi
-        
         echo "请选择您的默认语言 / Please choose your default language:"
         echo "1) 中文 (Chinese) [默认/Default]"
         echo "2) English"
@@ -419,9 +437,23 @@ first_time_setup() {
         local default_lang=$(read_user_config "default_language")
         if [[ "$default_lang" == "zh" ]]; then
             echo "设置完成！使用 'ccs help' 查看帮助信息。"
+            echo "正在创建默认模板文件..."
         else
             echo "Setup complete! Use 'ccs help' to see help information."
+            echo "Creating default template file..."
         fi
+        
+        # 创建默认模板文件
+        # Create default template file
+        create_default_template
+        
+        local default_file_path="$(get_default_file_path)"
+        if [[ "$default_lang" == "zh" ]]; then
+            echo "默认模板文件已创建: $(basename "$default_file_path")"
+        else
+            echo "Default template file created: $(basename "$default_file_path")"
+        fi
+        
         echo "$SEPARATOR_LINE"
         echo ""
     fi
@@ -1110,20 +1142,22 @@ add_config() {
         return 1
     fi
     
-    # 检查是否存在默认模板文件
-    # Check if default template file exists
+    # 检查是否存在默认模板文件，如果不存在则创建
+    # Check if default template file exists, create if not
     local default_file="$(get_default_file_path)"
     if [[ ! -f "$default_file" ]]; then
         if [[ "$lang" == "en" ]]; then
-            echo "Error: Default template file not found: $default_file"
-            echo "Please ensure you have copied $(basename "$default_file") to ~/.claude/"
-            echo "Refer to the installation instructions in README.md"
+            echo "Default template file not found, creating it automatically..."
         else
-            echo "错误：未找到默认模板文件: $default_file"
-            echo "请确保您已将 $(basename "$default_file") 复制到 ~/.claude/ 目录"
-            echo "请参考 README.md 中的安装说明"
+            echo "默认模板文件不存在，正在自动创建..."
         fi
-        return 1
+        create_default_template
+        if [[ "$lang" == "en" ]]; then
+            echo "Default template file created: $(basename "$default_file")"
+        else
+            echo "默认模板文件已创建: $(basename "$default_file")"
+        fi
+        echo ""
     fi
     
     # 检查配置是否已存在，询问是否覆盖

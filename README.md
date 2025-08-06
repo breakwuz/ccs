@@ -17,14 +17,36 @@
 
 ## 安装
 
+### 一键安装（推荐）
+
 ```bash
-# 安装到系统目录
+# 系统安装（推荐）
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+
+# 用户安装（无需 sudo）
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+install -D -m 755 /dev/stdin ~/bin/ccs && export PATH="$PATH:~/bin"
+
+# 使用 wget（备选方案）
+wget -qO- https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+```
+
+### 手动安装
+
+```bash
+# 下载脚本
+wget https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh
+
+# 安装到系统目录（推荐）
 sudo install -m 755 ccs.sh /usr/local/bin/ccs
 
-# 复制默认模板（新格式，默认）
-cp settings.json.default ~/.claude/settings.json.default
-# 或者传统格式
-cp settings-default.json ~/.claude/settings-default.json
+# 或者安装到用户目录（无需 sudo）
+mkdir -p ~/bin
+install -m 755 ccs.sh ~/bin/ccs
+# 确保 ~/bin 在 PATH 中
+export PATH="$PATH:~/bin"
 ``` 
 
 ## 使用方法
