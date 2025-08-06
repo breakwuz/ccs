@@ -19,6 +19,7 @@ API_KEY_PLACEHOLDER="your_api_key_here"
 BASE_URL_PLACEHOLDER="your_base_url_here"
 REPOSITORY_URL="https://github.com/shuiyihan12/ccs"
 LICENSE="MIT"
+AUTHOR="shiuyihan"
 SEPARATOR_LINE="────────────────────────────────────────────────"
 
 # 默认模板内容 (Default template content)
@@ -628,7 +629,7 @@ show_help_zh() {
     echo -e "${BOLD}示例:${NC}"
     echo -e "  ${CYAN}ccs template${NC}                          - 将当前配置设为模板"
     echo -e "  ${CYAN}ccs template work${NC}                     - 将 work 配置设为模板"
-    echo -e "  ${CYAN}ccs modify work sk-new https://new-api.com${NC} - 修改 work 配置"
+    echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - 修改 work 配置"
     echo ""
     echo -e "${BOLD}配置文件说明:${NC}"
     local naming_convention=$(read_user_config "naming_convention")
@@ -671,7 +672,7 @@ show_version() {
         echo -e "${BOLD}Project:${NC}"
         echo -e "  ${ICON_CONFIG} Repository: ${CYAN}$REPOSITORY_URL${NC}"
         echo -e "  ${ICON_DOT} License: ${YELLOW}$LICENSE${NC}"
-        echo -e "  ${ICON_STAR} Author: Claude Assistant"
+        echo -e "  ${ICON_STAR} Author: $AUTHOR"
     else
         echo -e "${BOLD}${MAGENTA}Claude 配置切换器 (CCS)${NC} ${GREEN}v$CCS_VERSION${NC}"
         echo -e "${SEPARATOR_LINE}"
@@ -681,7 +682,7 @@ show_version() {
         echo -e "${BOLD}项目信息:${NC}"
         echo -e "  ${ICON_CONFIG} 项目地址: ${CYAN}$REPOSITORY_URL${NC}"
         echo -e "  ${ICON_DOT} 许可证: ${YELLOW}$LICENSE${NC}"
-        echo -e "  ${ICON_STAR} 作者: Claude Assistant"
+        echo -e "  ${ICON_STAR} 作者: $AUTHOR"
     fi
 }
 # 显示英文帮助信息
@@ -705,7 +706,7 @@ show_help_en() {
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${CYAN}ccs template${NC}                            - Set current configuration as template"
     echo -e "  ${CYAN}ccs template work${NC}                       - Set work configuration as template"
-    echo -e "  ${CYAN}ccs modify work sk-new https://new-api.com${NC} - Modify work configuration"
+    echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - Modify work configuration"
     echo ""
     echo -e "${BOLD}Configuration files:${NC}"
     local naming_convention=$(read_user_config "naming_convention")
@@ -1467,14 +1468,14 @@ modify_config() {
             echo "       ccs modify <config_name> <api_key> \"\"      # Only update API key"
             echo "       ccs modify <config_name> \"\" <base_url>      # Only update base URL"
             echo "Examples:"
-            echo "  ccs modify work sk-ant-new https://api.example.com # Modify 'work' config"
+            echo "  ccs modify work sk-ant-new https://api.anthropic.com # Modify 'work' config"
         else
             echo "错误：必须提供API密钥或基础URL中的至少一个"
             echo "用法：ccs modify <配置名称> <密钥> <地址>"
             echo "     ccs modify <配置名称> <密钥> \"\"      # 只更新API密钥"
             echo "     ccs modify <配置名称> \"\" <地址>      # 只更新基础URL"
             echo "示例："
-            echo "  ccs modify work sk-ant-new https://api.example.com # 修改 'work' 配置"
+            echo "  ccs modify work sk-ant-new https://api.anthropic.com # 修改 'work' 配置"
         fi
         return 1
     fi
