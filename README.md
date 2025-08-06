@@ -17,15 +17,11 @@
 
 ## 安装
 
-### 方法1：系统级安装（推荐）
 ```bash
-# 安装到系统目录
-sudo install -m 755 ccs.sh /usr/local/bin/ccs
-
-# 复制默认模板
-cp settings-default.json ~/.claude/settings-default.json
-# 或者根据您选择的命名格式
+# 复制默认模板（新格式，默认）
 cp settings.json.default ~/.claude/settings.json.default
+# 或者传统格式
+cp settings-default.json ~/.claude/settings-default.json
 ``` 
 
 ## 使用方法
@@ -61,10 +57,8 @@ ccs rename <旧名称> <新名称>
 ccs mv old_name new_name
 
 # 修改配置
-ccs modify [配置名称] <新密钥> <新地址>
-# 修改当前激活配置（不指定配置名）
-ccs modify sk-new-key https://new-api.com
-# 修改指定配置（无法修改当前激活的配置）
+ccs modify <配置名称> <新密钥> <新地址>
+# 修改指定配置（只能修改非激活状态的配置）
 ccs modify work sk-new-key https://new-api.com
 
 # 设置配置模板
@@ -94,7 +88,7 @@ ccs add custom sk-ant-custom-xxxxx https://custom.api.com
 
 # 查看当前状态（默认行为）
 ccs
-# 输出示例（传统格式）:
+# 输出示例（新格式）:
 # 🔄 当前配置：
 #   ✓ production (settings.json.production) (激活)
 # 
@@ -111,13 +105,14 @@ ccs
 #     ➤ Base URL: https://custom.api.com
 #     ➤ API Key:  sk-ant-****xxxxx
 
-# 输出示例（新格式）:
+# 输出示例（传统格式）:
 # 🔄 当前配置：
 #   ✓ production (settings-production.json) (激活)
 # 
 # ⚙️ 可用配置：
 #   • development (settings-development.json)
 #     ➤ Base URL: https://api.anthropic.com
+#     ➤ API Key:  sk-ant-****xxxxx
 #     ➤ API Key:  sk-ant-****xxxxx
 
 # 切换到开发环境
@@ -132,11 +127,10 @@ ccs delete development
 # ❌ 错误：无法删除当前激活的配置 'development'
 # ℹ️ 请先切换到其他配置，使用：ccs switch <其他配置>
 
-# 修改非激活配置
+# 修改非激活配置（然后可以切换过去）
 ccs modify production sk-new-prod-key https://new-api.com
 
-# 修改当前激活配置
-ccs modify sk-new-dev-key https://new-dev-api.com
+# 不能修改当前激活配置（因为Claude Code需要重启才能生效）
 ```
 
 ## 保护机制
@@ -149,9 +143,9 @@ ccs modify sk-new-dev-key https://new-dev-api.com
 - 提供清晰的错误提示和解决方案
 
 ### 修改保护  
-- **无法修改当前激活配置的备份文件**（使用配置名指定时）
-- 要修改当前激活配置，请使用：`ccs modify <新密钥> <新地址>`（不指定配置名）
-- 这样确保修改直接应用到激活的配置文件
+- **无法修改当前激活的配置**：因为Claude Code需要重启才能读取配置文件更改
+- **只能修改非激活状态的配置**：修改后切换到该配置时立即生效
+- **建议工作流程**：修改非激活配置 → 切换到该配置 → 重启Claude Code
 
 ## 语言支持
 
@@ -172,8 +166,8 @@ default_language=zh  # 或 en
 
 工具支持两种配置文件命名格式，用户可在首次使用时选择：
 
-1. **传统格式**：`~/.claude/settings.json.<配置名称>`
-2. **新格式**：`~/.claude/settings-<配置名称>.json`
+1. **新格式**：`~/.claude/settings.json.<配置名称>` [默认]
+2. **传统格式**：`~/.claude/settings-<配置名称>.json`
 
 配置文件具有以下结构的 JSON 格式：
 
@@ -189,8 +183,7 @@ default_language=zh  # 或 en
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(mvn clean:*)",
-      // ... 其他权限
+      "Bash(mvn clean:*)"
     ],
     "deny": []
   }
@@ -210,19 +203,8 @@ default_language=zh  # 或 en
 # 使用 CCS 内置卸载功能删除配置文件（可选择性删除）（推荐）
 ccs uninstall
 
-# 删除系统安装的脚本
-sudo rm -f /usr/local/bin/ccs
-
 # 手动删除配置文件和默认模板（如需要）
 rm -rf ~/.claude/settings.json.*
 rm -rf ~/.claude/settings-*.json
 rm -f ~/.claude/ccs.conf
 ```
-
-## 许可证
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
-## 项目地址
-
-https://github.com/shuiyihan12/ccs

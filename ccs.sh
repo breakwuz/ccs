@@ -370,15 +370,15 @@ first_time_setup() {
         
         echo ""
         echo "请选择配置文件命名规则 / Please choose configuration file naming convention:"
-        echo "1) settings.json.<名称> / settings.json.<name> [传统格式 / Traditional format]"
-        echo "2) settings-<名称>.json / settings-<name>.json [新格式 / New format]"
+        echo "1) settings.json.<名称> / settings.json.<name> [新格式 / New format] [默认/Default]"
+        echo "2) settings-<名称>.json / settings-<name>.json [传统格式 / Traditional format]"
         echo ""
         
         local naming_choice
         while true; do
             read -p "请输入选项 / Enter choice (1/2): " naming_choice
-            # 如果没有输入，默认选择传统格式
-            # If no input, default to traditional format
+            # 如果没有输入，默认选择新格式
+            # If no input, default to new format
             if [[ -z "$naming_choice" ]]; then
                 naming_choice="1"
             fi
@@ -388,10 +388,10 @@ first_time_setup() {
                     write_user_config "naming_convention" "suffix"
                     if [[ "$lang_choice" == "zh" ]]; then
                         echo ""
-                        echo "已选择传统命名格式: settings.json.<名称>"
+                        echo "已选择新命名格式: settings.json.<名称>"
                     else
                         echo ""
-                        echo "Selected traditional naming format: settings.json.<name>"
+                        echo "Selected new naming format: settings.json.<name>"
                     fi
                     break
                     ;;
@@ -399,16 +399,16 @@ first_time_setup() {
                     write_user_config "naming_convention" "prefix"
                     if [[ "$lang_choice" == "zh" ]]; then
                         echo ""
-                        echo "已选择新命名格式: settings-<名称>.json"
+                        echo "已选择传统命名格式: settings-<名称>.json"
                     else
                         echo ""
-                        echo "Selected new naming format: settings-<name>.json"
+                        echo "Selected traditional naming format: settings-<name>.json"
                     fi
                     break
                     ;;
                 *)
-                    echo "无效选择，请输入 1 或 2（直接按回车默认选择传统格式）"
-                    echo "Invalid choice, please enter 1 or 2 (press Enter for default traditional format)"
+                    echo "无效选择，请输入 1 或 2（直接按回车默认选择新格式）"
+                    echo "Invalid choice, please enter 1 or 2 (press Enter for default new format)"
                     ;;
             esac
         done
@@ -587,7 +587,7 @@ show_help_zh() {
     echo -e "  ${GREEN}ccs delete|del|rm <名称>${NC}               - 删除备份配置"
     echo -e "  ${GREEN}ccs rename|ren|mv <旧名称> <新名称>${NC}     - 重命名配置"
     echo -e "  ${GREEN}ccs template [配置名称]${NC}                - 将配置设为模板（默认使用当前配置）"
-    echo -e "  ${GREEN}ccs modify [配置名称] <密钥> <地址>${NC}     - 修改配置的密钥和地址"
+    echo -e "  ${GREEN}ccs modify <配置名称> <密钥> <地址>${NC}     - 修改配置的密钥和地址（仅非激活配置）"
     echo -e "  ${GREEN}ccs uninstall${NC}                         - 卸载 CCS 工具"
     echo -e "  ${GREEN}ccs version${NC}                           - 显示版本信息"
     echo -e "  ${GREEN}ccs help${NC}                              - 显示此帮助信息"
@@ -663,7 +663,7 @@ show_help_en() {
     echo -e "  ${GREEN}ccs delete|del|rm <name>${NC}                - Delete backup configuration"
     echo -e "  ${GREEN}ccs rename|ren|mv <old> <new>${NC}           - Rename configuration"
     echo -e "  ${GREEN}ccs template [config_name]${NC}              - Set configuration as template (default: current config)"
-    echo -e "  ${GREEN}ccs modify [config_name] <key> <url>${NC}    - Modify configuration API key and base URL"
+    echo -e "  ${GREEN}ccs modify <config_name> <key> <url>${NC}    - Modify configuration API key and base URL (non-active only)"
     echo -e "  ${GREEN}ccs uninstall${NC}                           - Uninstall CCS tool"
     echo -e "  ${GREEN}ccs version${NC}                             - Show version information"
     echo -e "  ${GREEN}ccs help${NC}                                - Show this help"
@@ -1355,70 +1355,71 @@ set_template_config() {
 # 修改配置的API密钥和地址
 # Modify configuration API key and base URL
 modify_config() {
-    local config_name="${1:-}"
+    local config_name="$1"
     local api_key="$2"
     local base_url="$3"
     local lang=$(get_language)
     local target_file=""
     
-    # 确定目标文件
-    # Determine target file
+    # 检查配置名称是否提供
+    # Check if configuration name is provided
     if [[ -z "$config_name" ]]; then
-        # 修改当前激活的配置文件
-        # Modify current active configuration file
-        if [[ ! -f "$SETTINGS_FILE" ]]; then
-            if [[ "$lang" == "en" ]]; then
-                echo "Error: No active configuration found"
-                echo "Please switch to a configuration first using 'ccs switch <name>'"
-            else
-                echo "错误：未找到激活的配置"
-                echo "请先使用 'ccs switch <名称>' 切换到一个配置"
-            fi
-            return 1
-        fi
-        target_file="$SETTINGS_FILE"
         if [[ "$lang" == "en" ]]; then
-            echo "Modifying current active configuration"
+            echo "Error: Configuration name is required"
+            echo "Usage: ccs modify <config_name> <api_key> <base_url>"
+            echo "       ccs modify <config_name> <api_key> \"\"      # Only update API key"
+            echo "       ccs modify <config_name> \"\" <base_url>      # Only update base URL"
+            echo ""
+            echo "Note: Cannot modify currently active configuration because Claude Code"
+            echo "      requires restart to read configuration changes. Please modify"
+            echo "      a non-active configuration and then switch to it."
         else
-            echo "修改当前激活的配置"
+            echo "错误：需要提供配置名称"
+            echo "用法：ccs modify <配置名称> <密钥> <地址>"
+            echo "     ccs modify <配置名称> <密钥> \"\"      # 只更新API密钥"
+            echo "     ccs modify <配置名称> \"\" <地址>      # 只更新基础URL"
+            echo ""
+            echo "注意：无法修改当前激活的配置，因为 Claude Code 需要重启才能"
+            echo "      读取配置更改。请修改非激活状态的配置，然后切换到该配置。"
         fi
+        return 1
+    fi
+    
+    # 修改指定的配置文件
+    # Modify specified configuration file
+    local backup_file="$(get_config_file_path "$config_name")"
+    if [[ ! -f "$backup_file" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo "Error: Configuration '$config_name' not found"
+            echo "Available configurations:"
+        else
+            echo "错误：未找到配置 '$config_name'"
+            echo "可用配置："
+        fi
+        list_configs
+        return 1
+    fi
+    
+    # 检查是否为当前激活的配置，如果是则禁止修改
+    # Check if it's the currently active configuration, prevent modification if so
+    if [[ -f "$SETTINGS_FILE" ]] && compare_api_config "$SETTINGS_FILE" "$backup_file"; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Error: Cannot modify the currently active configuration '${BOLD}$config_name${NC}${RED}'${NC}"
+            echo -e "${ICON_INFO} Claude Code requires restart to read configuration changes."
+            echo -e "${ICON_INFO} Please switch to another configuration first, then modify this one."
+        else
+            echo -e "${RED}${ICON_ERROR} 错误：无法修改当前激活的配置 '${BOLD}$config_name${NC}${RED}'${NC}"
+            echo -e "${ICON_INFO} Claude Code 需要重启才能读取配置更改。"
+            echo -e "${ICON_INFO} 请先切换到其他配置，然后再修改此配置。"
+        fi
+        return 1
+    fi
+    
+    target_file="$backup_file"
+    if [[ "$lang" == "en" ]]; then
+        echo "Modifying configuration: $config_name"
     else
-        # 修改指定的配置文件
-        # Modify specified configuration file
-        local backup_file="$(get_config_file_path "$config_name")"
-        if [[ ! -f "$backup_file" ]]; then
-            if [[ "$lang" == "en" ]]; then
-                echo "Error: Configuration '$config_name' not found"
-                echo "Available configurations:"
-            else
-                echo "错误：未找到配置 '$config_name'"
-                echo "可用配置："
-            fi
-            list_configs "$lang"
-            return 1
-        fi
-        
-        # 检查是否为当前激活的配置，如果是则禁止修改
-        # Check if it's the currently active configuration, prevent modification if so
-        if [[ -f "$SETTINGS_FILE" ]] && compare_api_config "$SETTINGS_FILE" "$backup_file"; then
-            if [[ "$lang" == "en" ]]; then
-                echo -e "${RED}${ICON_ERROR} Error: Cannot modify the currently active configuration '${BOLD}$config_name${NC}${RED}'${NC}"
-                echo -e "${ICON_INFO} The active configuration is already in use. Modifications would be overwritten when switching configs."
-                echo -e "${ICON_INFO} To modify the active config, use: ${GREEN}ccs modify <new_key> <new_url>${NC} (without config name)"
-            else
-                echo -e "${RED}${ICON_ERROR} 错误：无法修改当前激活的配置 '${BOLD}$config_name${NC}${RED}'${NC}"
-                echo -e "${ICON_INFO} 激活的配置正在使用中。修改会在切换配置时被覆盖。"
-                echo -e "${ICON_INFO} 要修改激活的配置，使用：${GREEN}ccs modify <新密钥> <新地址>${NC}（不带配置名称）"
-            fi
-            return 1
-        fi
-        
-        target_file="$backup_file"
-        if [[ "$lang" == "en" ]]; then
-            echo "Modifying configuration: $config_name"
-        else
-            echo "修改配置: $config_name"
-        fi
+        echo "修改配置: $config_name"
     fi
     
     # 检查参数
@@ -1426,19 +1427,17 @@ modify_config() {
     if [[ -z "$api_key" && -z "$base_url" ]]; then
         if [[ "$lang" == "en" ]]; then
             echo "Error: At least one of API key or base URL must be provided"
-            echo "Usage: ccs modify [config_name] <api_key> <base_url>"
-            echo "       ccs modify [config_name] <api_key> \"\"      # Only update API key"
-            echo "       ccs modify [config_name] \"\" <base_url>      # Only update base URL"
+            echo "Usage: ccs modify <config_name> <api_key> <base_url>"
+            echo "       ccs modify <config_name> <api_key> \"\"      # Only update API key"
+            echo "       ccs modify <config_name> \"\" <base_url>      # Only update base URL"
             echo "Examples:"
-            echo "  ccs modify sk-ant-new https://api.example.com    # Modify current config"
             echo "  ccs modify work sk-ant-new https://api.example.com # Modify 'work' config"
         else
             echo "错误：必须提供API密钥或基础URL中的至少一个"
-            echo "用法：ccs modify [配置名称] <密钥> <地址>"
-            echo "     ccs modify [配置名称] <密钥> \"\"      # 只更新API密钥"
-            echo "     ccs modify [配置名称] \"\" <地址>      # 只更新基础URL"
+            echo "用法：ccs modify <配置名称> <密钥> <地址>"
+            echo "     ccs modify <配置名称> <密钥> \"\"      # 只更新API密钥"
+            echo "     ccs modify <配置名称> \"\" <地址>      # 只更新基础URL"
             echo "示例："
-            echo "  ccs modify sk-ant-new https://api.example.com    # 修改当前配置"
             echo "  ccs modify work sk-ant-new https://api.example.com # 修改 'work' 配置"
         fi
         return 1
@@ -1487,26 +1486,8 @@ modify_config() {
     
     if [[ "$lang" == "en" ]]; then
         echo "Configuration updated successfully!"
-        
-        # 如果修改的是当前激活配置，提示重启
-        # If modifying current active configuration, suggest restart
-        if [[ "$target_file" == "$SETTINGS_FILE" ]]; then
-            echo ""
-            echo "⚠️  Important: Please restart Claude Code for the changes to take effect."
-            echo "   You can restart Claude Code by closing and reopening it."
-            echo "   After restarting, you can continue your previous task with: claude --resume"
-        fi
     else
         echo "配置更新成功！"
-        
-        # 如果修改的是当前激活配置，提示重启
-        # If modifying current active configuration, suggest restart
-        if [[ "$target_file" == "$SETTINGS_FILE" ]]; then
-            echo ""
-            echo "⚠️  重要提醒：请重启 Claude Code 以使更改生效。"
-            echo "   您可以通过关闭并重新打开 Claude Code 来重启。"
-            echo "   重启后，您可以使用以下命令继续之前的任务: claude --resume"
-        fi
     fi
 }
 
@@ -1902,10 +1883,7 @@ case "$1" in
     "modify"|"mod")
         # 修改配置的API密钥和地址
         # Modify configuration API key and base URL
-        if [[ $# -eq 3 ]]; then
-            # ccs modify api_key base_url (modify current config)
-            modify_config "" "$2" "$3"
-        elif [[ $# -eq 4 ]]; then
+        if [[ $# -eq 4 ]]; then
             # ccs modify config_name api_key base_url (modify specific config)
             modify_config "$2" "$3" "$4"
         else
