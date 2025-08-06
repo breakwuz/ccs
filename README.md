@@ -20,13 +20,17 @@
 ### 一键安装（推荐）
 
 ```bash
-# 系统安装（推荐）
-curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+# 系统安装（推荐 - 使用镜像站）
+curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
 sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
 
-# 用户安装（无需 sudo）
-curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+# 用户安装（无需 sudo - 使用镜像站）
+curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
 install -D -m 755 /dev/stdin ~/bin/ccs && export PATH="$PATH:~/bin"
+
+# 使用 GitHub 直链（备选方案）
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
 
 # 使用 wget（备选方案）
 wget -qO- https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
@@ -54,10 +58,14 @@ export PATH="$PATH:~/bin"
 ### 基础命令
 
 ```bash
-# 显示当前配置和所有配置列表（默认行为）
+# 显示帮助信息（默认行为）
 ccs
-# 或者
+# 或
+ccs help
+
+# 显示当前配置和所有配置列表
 ccs list
+# 或
 ccs ls
 
 # 添加新配置
@@ -111,8 +119,8 @@ ccs add production sk-ant-prod-xxxxx https://api.anthropic.com
 ccs add development sk-ant-dev-xxxxx https://api.anthropic.com  
 ccs add custom sk-ant-custom-xxxxx https://custom.api.com
 
-# 查看当前状态（默认行为）
-ccs
+# 查看当前状态
+ccs list
 # 输出示例（新格式）:
 # 🔄 当前配置：
 #   ✓ production (settings.json.production) (激活)

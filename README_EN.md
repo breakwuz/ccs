@@ -20,13 +20,17 @@ A command-line tool for managing multiple Claude API configurations. Easily swit
 ### One-liner Installation (Recommended)
 
 ```bash
-# System installation (recommended)
-curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+# System installation (recommended - using CDN mirror)
+curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
 sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
 
-# User installation (no sudo required)
-curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+# User installation (no sudo required - using CDN mirror)
+curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
 install -D -m 755 /dev/stdin ~/bin/ccs && export PATH="$PATH:~/bin"
+
+# Using GitHub direct link (alternative option)
+curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
+sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
 
 # Using wget (alternative option)
 wget -qO- https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
@@ -54,10 +58,14 @@ export PATH="$PATH:~/bin"
 ### Basic Commands
 
 ```bash
-# Show current configuration and all configuration list (default behavior)
+# Show help information (default behavior)
 ccs
 # or
+ccs help
+
+# Show current configuration and all configuration list
 ccs list
+# or
 ccs ls
 
 # Add new configuration
@@ -111,8 +119,8 @@ ccs add production sk-ant-prod-xxxxx https://api.anthropic.com
 ccs add development sk-ant-dev-xxxxx https://api.anthropic.com  
 ccs add custom sk-ant-custom-xxxxx https://custom.api.com
 
-# View current status (default behavior)
-ccs
+# View current status
+ccs list
 # Output example (new format):
 # 🔄 Current Configuration:
 #   ✓ production (settings.json.production) (Active)

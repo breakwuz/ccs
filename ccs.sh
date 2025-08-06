@@ -613,7 +613,7 @@ show_help_zh() {
     echo -e "${BOLD}${BLUE}Claude Code 配置切换器 (ccs)${NC}"
     echo -e "${SEPARATOR_LINE}"
     echo -e "${BOLD}用法:${NC}"
-    echo -e "  ${GREEN}ccs${NC}                                         - 显示当前配置和所有可用配置列表"
+    echo -e "  ${GREEN}ccs${NC}                                         - 显示此帮助信息"
     echo -e "  ${GREEN}ccs list|ls${NC}                                 - 显示当前配置和所有可用配置列表"  
     echo -e "  ${GREEN}ccs switch|sw <名称>${NC}                        - 切换到指定配置"
     echo -e "  ${GREEN}ccs add <名称> <密钥> <地址>${NC}                 - 添加新配置"
@@ -690,7 +690,7 @@ show_help_en() {
     echo -e "${BOLD}${BLUE}Claude Code Configuration Switcher (ccs)${NC}"
     echo -e "${SEPARATOR_LINE}"
     echo -e "${BOLD}Usage:${NC}"
-    echo -e "  ${GREEN}ccs${NC}                                         - Show current configuration and list all available configurations"
+    echo -e "  ${GREEN}ccs${NC}                                         - Show this help information"
     echo -e "  ${GREEN}ccs list|ls${NC}                                 - Show current configuration and list all available configurations" 
     echo -e "  ${GREEN}ccs switch|sw <name>${NC}                        - Switch to configuration <name>"
     echo -e "  ${GREEN}ccs add <name> <api_key> <base_url>${NC}         - Add new configuration"
@@ -1947,9 +1947,9 @@ case "$1" in
         show_help
         ;;
     "")
-        # 默认行为：显示当前配置和所有可用配置
-        # Default behavior: show current configuration and all available configurations
-        list_configs_with_current
+        # 默认行为：显示帮助信息
+        # Default behavior: show help information
+        show_help
         ;;
     *)
         # 未知命令
