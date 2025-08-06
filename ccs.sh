@@ -22,6 +22,13 @@ LICENSE="MIT"
 AUTHOR="shiuyihan"
 SEPARATOR_LINE="────────────────────────────────────────────────"
 
+# 提示信息常量
+# Prompt message constants
+SETUP_LANGUAGE_PROMPT_ZH="请输入选项 / Enter choice (1/2) [默认: 1]: "
+SETUP_NAMING_PROMPT_ZH="请输入选项 / Enter choice (1/2) [默认: 1]: "
+DEFAULT_SELECTED_ZH="已选择默认选项:"
+DEFAULT_SELECTED_EN="Selected default option:"
+
 # 默认模板内容 (Default template content)
 DEFAULT_TEMPLATE_CONTENT='{
   "env": {
@@ -71,6 +78,53 @@ TABLE_HORIZONTAL="─"
 TABLE_VERTICAL="│"
 TABLE_CROSS="┼"
 
+# 全局变量缓存
+# Global variable cache
+_CACHED_LANGUAGE=""
+_CACHED_NAMING_CONVENTION=""
+_CACHED_CURRENT_CONFIG=""
+
+# 获取并缓存用户配置
+# Get and cache user configuration
+get_cached_config() {
+    local config_key="$1"
+    
+    case "$config_key" in
+        "default_language")
+            if [[ -z "$_CACHED_LANGUAGE" ]]; then
+                _CACHED_LANGUAGE=$(read_user_config "default_language")
+                if [[ -z "$_CACHED_LANGUAGE" ]]; then
+                    _CACHED_LANGUAGE="$DEFAULT_LANGUAGE"
+                fi
+            fi
+            echo "$_CACHED_LANGUAGE"
+            ;;
+        "naming_convention")
+            if [[ -z "$_CACHED_NAMING_CONVENTION" ]]; then
+                _CACHED_NAMING_CONVENTION=$(read_user_config "naming_convention")
+                if [[ -z "$_CACHED_NAMING_CONVENTION" ]]; then
+                    _CACHED_NAMING_CONVENTION="$DEFAULT_NAMING_CONVENTION"
+                fi
+            fi
+            echo "$_CACHED_NAMING_CONVENTION"
+            ;;
+        "current_config")
+            if [[ -z "$_CACHED_CURRENT_CONFIG" ]]; then
+                _CACHED_CURRENT_CONFIG=$(read_user_config "current_config")
+            fi
+            echo "$_CACHED_CURRENT_CONFIG"
+            ;;
+    esac
+}
+
+# 清除配置缓存
+# Clear configuration cache
+clear_config_cache() {
+    _CACHED_LANGUAGE=""
+    _CACHED_NAMING_CONVENTION=""
+    _CACHED_CURRENT_CONFIG=""
+}
+
 # 配置目录和文件路径
 # Configuration directory and file paths
 CLAUDE_DIR="$HOME/.claude"
@@ -80,13 +134,7 @@ CCS_CONFIG_FILE="$CLAUDE_DIR/ccs.conf"
 # 生成默认模板文件路径
 # Generate default template file path
 get_default_file_path() {
-    local naming_convention=$(read_user_config "naming_convention")
-    
-    # 如果没有配置或配置为空，默认使用后缀模式
-    # If no configuration or empty, default to suffix mode
-    if [[ -z "$naming_convention" ]]; then
-        naming_convention="$DEFAULT_NAMING_CONVENTION"
-    fi
+    local naming_convention=$(get_cached_config "naming_convention")
     
     case "$naming_convention" in
         "prefix")
@@ -146,13 +194,7 @@ confirm_action() {
 # Generate configuration file path
 get_config_file_path() {
     local name="$1"
-    local naming_convention=$(read_user_config "naming_convention")
-    
-    # 如果没有配置或配置为空，默认使用后缀模式
-    # If no configuration or empty, default to suffix mode
-    if [[ -z "$naming_convention" ]]; then
-        naming_convention="$DEFAULT_NAMING_CONVENTION"
-    fi
+    local naming_convention=$(get_cached_config "naming_convention")
     
     case "$naming_convention" in
         "prefix")
@@ -167,13 +209,7 @@ get_config_file_path() {
 # 生成文件模式匹配pattern
 # Generate file pattern for matching
 get_file_pattern() {
-    local naming_convention=$(read_user_config "naming_convention")
-    
-    # 如果没有配置或配置为空，默认使用后缀模式
-    # If no configuration or empty, default to suffix mode
-    if [[ -z "$naming_convention" ]]; then
-        naming_convention="$DEFAULT_NAMING_CONVENTION"
-    fi
+    local naming_convention=$(get_cached_config "naming_convention")
     
     case "$naming_convention" in
         "prefix")
@@ -190,13 +226,7 @@ get_file_pattern() {
 extract_config_name() {
     local file="$1"
     local filename=$(basename "$file")
-    local naming_convention=$(read_user_config "naming_convention")
-    
-    # 如果没有配置或配置为空，默认使用后缀模式
-    # If no configuration or empty, default to suffix mode
-    if [[ -z "$naming_convention" ]]; then
-        naming_convention="$DEFAULT_NAMING_CONVENTION"
-    fi
+    local naming_convention=$(get_cached_config "naming_convention")
     
     case "$naming_convention" in
         "prefix")
@@ -223,22 +253,25 @@ generate_spaces() {
 # Check if configuration file exists
 check_config_exists() {
     local name="$1"
-    local lang="$2"
     local backup_file="$(get_config_file_path "$name")"
     
     if [[ ! -f "$backup_file" ]]; then
-        show_message "$lang" \
-            "Error: Configuration '$name' not found" \
-            "错误：未找到配置 '$name'"
-        show_message "$lang" "Available configurations:" "可用配置："
-        list_configs
+        handle_error "missing_config" "$name"
         return 1
     fi
     return 0
 }
 
+# 获取配置文件信息（文件名和配置名）
+# Get configuration file info (filename and config name)
+get_config_info() {
+    local file="$1"
+    local filename=$(basename "$file")
+    local config_name=$(extract_config_name "$file")
+    echo "${filename}|${config_name}"
+}
+
 # 读取用户配置
-# Read user configuration
 read_user_config() {
     local default_lang="zh"
     local naming_convention="suffix"
@@ -314,8 +347,8 @@ current_config=
 EOF
     fi
     
-    # 更新配置值
-    # Update configuration value
+    # 更新配置值并清除缓存
+    # Update configuration value and clear cache
     if grep -q "^$key=" "$CCS_CONFIG_FILE"; then
         # 使用临时文件更新配置
         # Use temporary file to update configuration
@@ -335,6 +368,31 @@ EOF
         # Add new configuration item
         echo "$key=$value" >> "$CCS_CONFIG_FILE"
     fi
+    
+    # 清除缓存以确保下次读取最新值
+    # Clear cache to ensure next read gets latest values
+    clear_config_cache
+}
+
+# 美化标题显示函数
+# Beautiful title display function
+display_title() {
+    local title="$1"
+    local width=60
+    local title_length=${#title}
+    local total_padding=$((width - title_length))
+    local left_padding=$((total_padding / 2))
+    local right_padding=$((total_padding - left_padding))
+    local line=""
+    
+    # 生成分隔线
+    for ((i=0; i<width; i++)); do
+        line+="="
+    done
+    
+    echo -e "${CYAN}$line${NC}"
+    printf "${CYAN}%*s%s%*s${NC}\n" $left_padding "" "$title" $right_padding ""
+    echo -e "${CYAN}$line${NC}"
 }
 
 # 第一次使用语言选择引导
@@ -345,10 +403,7 @@ first_time_setup() {
         # Create directory
         mkdir -p "$CLAUDE_DIR"
         
-        echo "$SEPARATOR_LINE"
-        echo "欢迎使用 Claude Code 配置切换器 (CCS)!"
-        echo "Welcome to Claude Code Configuration Switcher (CCS)!"
-        echo "$SEPARATOR_LINE"
+        display_title "Claude Configuration Switcher (CCS) v$CCS_VERSION"
         echo ""
         
         echo "请选择您的默认语言 / Please choose your default language:"
@@ -358,11 +413,13 @@ first_time_setup() {
         
         local lang_choice
         while true; do
-            read -p "请输入选项 / Enter choice (1/2): " lang_choice
+            read -p "$SETUP_LANGUAGE_PROMPT_ZH" lang_choice
             # 如果没有输入，默认选择中文
             # If no input, default to Chinese
             if [[ -z "$lang_choice" ]]; then
                 lang_choice="1"
+                echo "$DEFAULT_SELECTED_ZH 1) 中文 (Chinese)"
+                echo "$DEFAULT_SELECTED_EN 1) Chinese"
             fi
             
             case "$lang_choice" in
@@ -395,11 +452,13 @@ first_time_setup() {
         
         local naming_choice
         while true; do
-            read -p "请输入选项 / Enter choice (1/2): " naming_choice
+            read -p "$SETUP_NAMING_PROMPT_ZH" naming_choice
             # 如果没有输入，默认选择新格式
             # If no input, default to new format
             if [[ -z "$naming_choice" ]]; then
                 naming_choice="1"
+                echo "$DEFAULT_SELECTED_ZH 1) settings.json.<名称> / settings.json.<name>"
+                echo "$DEFAULT_SELECTED_EN 1) settings.json.<name>"
             fi
             
             case "$naming_choice" in
@@ -433,7 +492,7 @@ first_time_setup() {
         done
         
         echo ""
-        echo "$SEPARATOR_LINE"
+        display_title "设置完成 / Setup Complete"
         
         local default_lang=$(read_user_config "default_language")
         if [[ "$default_lang" == "zh" ]]; then
@@ -454,25 +513,18 @@ first_time_setup() {
         else
             echo "Default template file created: $(basename "$default_file_path")"
         fi
-        
-        echo "$SEPARATOR_LINE"
         echo ""
+        
+        # 确保配置缓存是最新的
+        # Ensure configuration cache is up-to-date
+        clear_config_cache
     fi
 }
 
 # 获取语言配置
 # Get language configuration
 get_language() {
-    local lang=$(read_user_config "default_language")
-    
-    # 如果没有配置或配置为空，默认使用中文
-    # If no configuration or empty, default to Chinese
-    if [[ -z "$lang" ]]; then
-        lang="$DEFAULT_LANGUAGE"
-    fi
-    
-    echo "$lang"
-    return 0
+    echo $(get_cached_config "default_language")
 }
 
 # 截断和脱敏API信息
@@ -611,8 +663,7 @@ generate_table_bottom_border() {
 # 显示中文帮助信息
 # Display Chinese help information
 show_help_zh() {
-    echo -e "${BOLD}${BLUE}Claude Code 配置切换器 (ccs)${NC}"
-    echo -e "${SEPARATOR_LINE}"
+    display_title "Claude Code 配置切换器 (CCS) v$CCS_VERSION"
     echo -e "${BOLD}用法:${NC}"
     echo -e "  ${GREEN}ccs${NC}                                         - 显示此帮助信息"
     echo -e "  ${GREEN}ccs list|ls${NC}                                 - 显示当前配置和所有可用配置列表"  
@@ -632,7 +683,7 @@ show_help_zh() {
     echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - 修改 work 配置"
     echo ""
     echo -e "${BOLD}配置文件说明:${NC}"
-    local naming_convention=$(read_user_config "naming_convention")
+    local naming_convention=$(get_cached_config "naming_convention")
     local config_example=""
     local template_file=""
     if [[ "$naming_convention" == "prefix" ]]; then
@@ -664,8 +715,7 @@ show_version() {
     fi
     
     if [[ "$lang" == "en" ]]; then
-        echo -e "${BOLD}${MAGENTA}Claude Configuration Switcher (CCS)${NC} ${GREEN}v$CCS_VERSION${NC}"
-        echo -e "${SEPARATOR_LINE}"
+        display_title "Claude Configuration Switcher (CCS) v$CCS_VERSION"
         echo -e "${ICON_INFO} A command-line tool for managing multiple Claude API configurations."
         echo -e "${ICON_ARROW} Easily switch between different API keys and base URLs."
         echo ""
@@ -674,8 +724,7 @@ show_version() {
         echo -e "  ${ICON_DOT} License: ${YELLOW}$LICENSE${NC}"
         echo -e "  ${ICON_STAR} Author: $AUTHOR"
     else
-        echo -e "${BOLD}${MAGENTA}Claude 配置切换器 (CCS)${NC} ${GREEN}v$CCS_VERSION${NC}"
-        echo -e "${SEPARATOR_LINE}"
+        display_title "Claude 配置切换器 (CCS) v$CCS_VERSION"
         echo -e "${ICON_INFO} 用于管理多个 Claude API 配置的命令行工具。"
         echo -e "${ICON_ARROW} 可以轻松在不同的 API 密钥和基础 URL 之间切换。"
         echo ""
@@ -688,8 +737,7 @@ show_version() {
 # 显示英文帮助信息
 # Display English help information
 show_help_en() {
-    echo -e "${BOLD}${BLUE}Claude Code Configuration Switcher (ccs)${NC}"
-    echo -e "${SEPARATOR_LINE}"
+    display_title "Claude Code Configuration Switcher (CCS) v$CCS_VERSION"
     echo -e "${BOLD}Usage:${NC}"
     echo -e "  ${GREEN}ccs${NC}                                         - Show this help information"
     echo -e "  ${GREEN}ccs list|ls${NC}                                 - Show current configuration and list all available configurations" 
@@ -709,7 +757,7 @@ show_help_en() {
     echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - Modify work configuration"
     echo ""
     echo -e "${BOLD}Configuration files:${NC}"
-    local naming_convention=$(read_user_config "naming_convention")
+    local naming_convention=$(get_cached_config "naming_convention")
     local config_example=""
     local template_file=""
     if [[ "$naming_convention" == "prefix" ]]; then
@@ -745,17 +793,57 @@ show_help() {
     esac
 }
 
+# 统一的错误处理函数
+# Unified error handling function
+handle_error() {
+    local error_code="$1"
+    local context="$2"
+    local lang=$(get_language)
+    
+    case "$error_code" in
+        "missing_config")
+            show_message "$lang" \
+                "Error: Configuration '$context' not found" \
+                "错误：未找到配置 '$context'"
+            show_message "$lang" "Available configurations:" "可用配置："
+            list_configs
+            return 1
+            ;;
+        "invalid_name")
+            show_message "$lang" \
+                "Error: Name can only contain English letters, numbers, and underscores" \
+                "错误：名称只能包含英文字母、数字和下划线"
+            return 1
+            ;;
+        "missing_params")
+            show_message "$lang" \
+                "Error: $context" \
+                "错误：$context"
+            return 1
+            ;;
+        "file_exists")
+            show_message "$lang" \
+                "Error: Configuration '$context' already exists" \
+                "错误：配置 '$context' 已存在"
+            return 1
+            ;;
+        "active_config")
+            show_message "$lang" \
+                "Error: Cannot modify/delete the currently active configuration '$context'" \
+                "错误：无法修改/删除当前激活的配置 '$context'"
+            return 1
+            ;;
+    esac
+}
+
 # 验证配置名称格式
 # Validate configuration name format
 validate_name() {
     local name="$1"
-    local lang=$(get_language)
     # 只允许英文字母、数字、下划线
     # Only allow English letters, numbers, underscores
     if [[ ! "$name" =~ ^[a-zA-Z0-9_]+$ ]]; then
-        show_message "$lang" \
-            "Error: Name can only contain English letters, numbers, and underscores" \
-            "错误：名称只能包含英文字母、数字和下划线"
+        handle_error "invalid_name" "$name"
         return 1
     fi
     return 0
