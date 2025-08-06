@@ -14,6 +14,7 @@ A command-line tool for managing multiple Claude API configurations. Easily swit
 - **Validation**: Name validation and confirmation prompts for destructive operations
 - **Multi-language**: Support for both Chinese and English interfaces
 - **Beautiful Interface**: Colorized output and icons for enhanced user experience
+- **Auto Update**: Built-in auto-update functionality to keep the tool up-to-date
 
 ## Installation
 
@@ -107,8 +108,22 @@ ccs version
 # Show help
 ccs help
 
+# Update to latest version
+ccs update
+
 # Uninstall tool
 ccs uninstall
+```
+
+### Auto Update
+
+```bash
+# Check and update to latest version
+ccs update
+# System will automatically check version, and ask if you want to upgrade if updates are available (default choice is yes)
+
+# If there are issues after update, you can rollback to previous version
+ccs update --rollback
 ```
 
 ### Usage Examples
