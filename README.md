@@ -1,4 +1,4 @@
-# Claude 配置切换器 (CCS)
+# Claude Code 配置切换器 (CCS)
 
 一个用于管理多个 Claude API 配置的命令行工具。可以轻松在不同环境或账户的 API 密钥和基础 URL 之间切换。
 

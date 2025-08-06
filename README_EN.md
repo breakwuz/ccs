@@ -1,4 +1,4 @@
-# Claude Configuration Switcher (CCS)
+# Claude Code Configuration Switcher (CCS)
 
 A command-line tool for managing multiple Claude API configurations. Easily switch between different API keys and base URLs for various environments or accounts.
 
@@ -10,22 +10,21 @@ A command-line tool for managing multiple Claude API configurations. Easily swit
 - **Easy Switching**: Switch between configurations with a single command
 - **Template Support**: Use default templates to ensure consistent configuration structure
 - **Configuration Protection**: Prevent deletion or modification of currently active configurations
-- **Information Masking**: Automatically mask API keys when displayed to protect privacy
+- **Information Sanitization**: Automatically sanitize API keys when displayed to protect privacy
 - **Validation**: Name validation and confirmation prompts for destructive operations
 - **Multi-language**: Support for both Chinese and English interfaces
 - **Beautiful Interface**: Colorized output and icons for enhanced user experience
 
 ## Installation
 
-### Method 1: System-wide Installation (Recommended)
 ```bash
 # Install to system directory
 sudo install -m 755 ccs.sh /usr/local/bin/ccs
 
-# Copy default template
-cp settings-default.json ~/.claude/settings-default.json
-# Or depending on your chosen naming format
+# Copy default template (new format, default)
 cp settings.json.default ~/.claude/settings.json.default
+# Or traditional format
+cp settings-default.json ~/.claude/settings-default.json
 ```
 
 ## Usage
@@ -61,10 +60,8 @@ ccs rename <old_name> <new_name>
 ccs mv old_name new_name
 
 # Modify configuration
-ccs modify [config_name] <new_key> <new_url>
-# Modify currently active configuration (without specifying config name)
-ccs modify sk-new-key https://new-api.com
-# Modify specified configuration (cannot modify currently active configuration)
+ccs modify <config_name> <new_key> <new_url>
+# Modify specified configuration (can only modify non-active configurations)
 ccs modify work sk-new-key https://new-api.com
 
 # Set configuration template
@@ -94,7 +91,7 @@ ccs add custom sk-ant-custom-xxxxx https://custom.api.com
 
 # View current status (default behavior)
 ccs
-# Output example (traditional format):
+# Output example (new format):
 # 🔄 Current Configuration:
 #   ✓ production (settings.json.production) (Active)
 # 
@@ -111,7 +108,7 @@ ccs
 #     ➤ Base URL: https://custom.api.com
 #     ➤ API Key:  sk-ant-****xxxxx
 
-# Output example (new format):
+# Output example (traditional format):
 # 🔄 Current Configuration:
 #   ✓ production (settings-production.json) (Active)
 # 
@@ -132,11 +129,10 @@ ccs delete development
 # ❌ Error: Cannot delete the currently active configuration 'development'
 # ℹ️ Please switch to another configuration first using: ccs switch <other_config>
 
-# Modify non-active configuration
+# Modify non-active configuration (then can switch to it)
 ccs modify production sk-new-prod-key https://new-api.com
 
-# Modify currently active configuration
-ccs modify sk-new-dev-key https://new-dev-api.com
+# Cannot modify currently active configuration (because Claude Code needs restart to take effect)
 ```
 
 ## Protection Mechanisms
@@ -148,10 +144,10 @@ To prevent accidental operations, CCS provides the following protection mechanis
 - Must switch to another configuration first before deletion
 - Provides clear error messages and solutions
 
-### Modify Protection  
-- **Cannot modify backup file of currently active configuration** (when specified by config name)
-- To modify currently active configuration, use: `ccs modify <new_key> <new_url>` (without config name)
-- This ensures modifications are applied directly to the active configuration file
+### Modification Protection  
+- **Cannot modify currently active configuration**: Because Claude Code needs restart to read configuration file changes
+- **Can only modify non-active configurations**: Changes take effect immediately when switching to that configuration
+- **Suggested workflow**: Modify non-active configuration → Switch to that configuration → Restart Claude Code
 
 ## Language Support
 
@@ -172,8 +168,8 @@ Once default language is set, all commands will display information in that lang
 
 The tool supports two configuration file naming formats, which users can choose during first-time setup:
 
-1. **Traditional format**: `~/.claude/settings.json.<name>`
-2. **New format**: `~/.claude/settings-<name>.json`
+1. **New format**: `~/.claude/settings.json.<config_name>` [default]
+2. **Traditional format**: `~/.claude/settings-<config_name>.json`
 
 Configuration files have the following JSON structure:
 
@@ -189,8 +185,7 @@ Configuration files have the following JSON structure:
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(mvn clean:*)",
-      // ... other permissions
+      "Bash(mvn clean:*)"
     ],
     "deny": []
   }
@@ -199,7 +194,7 @@ Configuration files have the following JSON structure:
 
 ## Privacy Protection
 
-- **API Key Masking**: Only shows first 12 and last 10 characters when displayed, with asterisks in between
+- **API Key Sanitization**: Only shows first 12 and last 10 characters when displayed, middle replaced with asterisks
 - **Secure Storage**: Configuration files stored in user home directory with system-protected permissions
 
 ## Uninstall/Cleanup
@@ -213,16 +208,8 @@ ccs uninstall
 # Remove system-installed script
 sudo rm -f /usr/local/bin/ccs
 
-# Manually remove configuration files and default template (if needed)
+# Manually delete configuration files and default template (if needed)
 rm -rf ~/.claude/settings.json.*
 rm -rf ~/.claude/settings-*.json
 rm -f ~/.claude/ccs.conf
 ```
-
-## License
-
-MIT License - See [LICENSE](LICENSE) file for details
-
-## Repository
-
-https://github.com/shuiyihan12/ccs
