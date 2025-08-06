@@ -18,6 +18,9 @@
 ## 安装
 
 ```bash
+# 安装到系统目录
+sudo install -m 755 ccs.sh /usr/local/bin/ccs
+
 # 复制默认模板（新格式，默认）
 cp settings.json.default ~/.claude/settings.json.default
 # 或者传统格式
@@ -202,6 +205,9 @@ default_language=zh  # 或 en
 ```bash
 # 使用 CCS 内置卸载功能删除配置文件（可选择性删除）（推荐）
 ccs uninstall
+
+# 删除系统安装的脚本
+sudo rm -f /usr/local/bin/ccs
 
 # 手动删除配置文件和默认模板（如需要）
 rm -rf ~/.claude/settings.json.*
