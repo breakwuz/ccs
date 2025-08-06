@@ -29,6 +29,12 @@ SETUP_NAMING_PROMPT_ZH="请输入选项 / Enter choice (1/2) [默认: 1]: "
 DEFAULT_SELECTED_ZH="已选择默认选项:"
 DEFAULT_SELECTED_EN="Selected default option:"
 
+# 更新相关常量 (Update related constants)
+GITHUB_API_URL="https://api.github.com/repos/shuiyihan12/ccs/releases/latest"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/shuiyihan12/ccs/master/ccs.sh"
+CDN_MIRROR_URL="https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh"
+SCRIPT_BACKUP_SUFFIX=".backup"
+
 # 默认模板内容 (Default template content)
 DEFAULT_TEMPLATE_CONTENT='{
   "env": {
@@ -190,6 +196,26 @@ confirm_action() {
     [[ $REPLY =~ ^[Yy]$ ]]
 }
 
+# 更新确认提示函数（默认Y）
+# Update confirmation prompt function (default Y)
+confirm_update() {
+    local lang="$1"
+    local en_prompt="$2"
+    local zh_prompt="$3"
+    if [[ "$lang" == "en" ]]; then
+        read -p "$en_prompt (Y/n): " -n 1 -r
+    else
+        read -p "$zh_prompt (Y/n): " -n 1 -r
+    fi
+    echo
+    # 默认为Y，只有明确输入n/N才拒绝
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
 # 生成配置文件路径
 # Generate configuration file path
 get_config_file_path() {
@@ -314,6 +340,123 @@ read_user_config() {
     esac
 }
 
+# 简单的版本比较函数
+# Simple version comparison function
+compare_versions() {
+    local version1="$1"
+    local version2="$2"
+    
+    # 移除版本号前的v字符
+    version1="${version1#v}"
+    version2="${version2#v}"
+    
+    # 使用点分割版本号
+    IFS='.' read -ra VER1 <<< "$version1"
+    IFS='.' read -ra VER2 <<< "$version2"
+    
+    # 比较主要版本号
+    local v1_major=${VER1[0]:-0}
+    local v2_major=${VER2[0]:-0}
+    local v1_minor=${VER1[1]:-0}
+    local v2_minor=${VER2[1]:-0}
+    local v1_patch=${VER1[2]:-0}
+    local v2_patch=${VER2[2]:-0}
+    
+    if [[ $v1_major -gt $v2_major ]]; then
+        return 1  # version1 > version2
+    elif [[ $v1_major -lt $v2_major ]]; then
+        return 2  # version1 < version2
+    elif [[ $v1_minor -gt $v2_minor ]]; then
+        return 1
+    elif [[ $v1_minor -lt $v2_minor ]]; then
+        return 2
+    elif [[ $v1_patch -gt $v2_patch ]]; then
+        return 1
+    elif [[ $v1_patch -lt $v2_patch ]]; then
+        return 2
+    fi
+    
+    return 0  # version1 == version2
+}
+
+# 获取远程版本号（直接从CDN获取）
+# Get remote version (directly from CDN)
+get_remote_version() {
+    # 检查curl是否可用
+    if ! command -v curl &> /dev/null; then
+        return 1
+    fi
+    
+    # 直接从CDN获取版本号
+    local remote_version
+    remote_version=$(curl -fsSL "$CDN_MIRROR_URL" | grep '^CCS_VERSION=' | head -1 | cut -d'"' -f2)
+    
+    if [[ -z "$remote_version" ]]; then
+        return 1
+    fi
+    
+    # 返回版本号
+    echo "$remote_version"
+    return 0
+}
+
+# 下载远程文件到临时文件并返回路径
+# Download remote file to temporary file and return path
+download_remote_file() {
+    # 检查curl是否可用
+    if ! command -v curl &> /dev/null; then
+        return 1
+    fi
+    
+    # 创建临时文件
+    local temp_file=$(mktemp)
+    if [[ -z "$temp_file" ]]; then
+        return 1
+    fi
+    
+    # 下载到临时文件
+    if ! curl -fsSL "$CDN_MIRROR_URL" -o "$temp_file"; then
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    # 检查文件是否为空
+    if [[ ! -s "$temp_file" ]]; then
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    # 返回临时文件路径
+    echo "$temp_file"
+    return 0
+}
+
+# 获取当前脚本的路径
+# Get current script path
+get_script_path() {
+    local script_path=""
+    
+    # 首先尝试从 $0 获取
+    # First try to get from $0
+    if [[ -f "$0" ]]; then
+        script_path="$0"
+    # 检查常见安装位置
+    # Check common installation locations
+    elif [[ -f "/usr/local/bin/ccs" ]]; then
+        script_path="/usr/local/bin/ccs"
+    elif [[ -f "$HOME/bin/ccs" ]]; then
+        script_path="$HOME/bin/ccs"
+    elif [[ -f "./ccs.sh" ]]; then
+        script_path="./ccs.sh"
+    else
+        # 尝试使用 which 命令
+        # Try using which command
+        script_path=$(which ccs 2>/dev/null)
+    fi
+    
+    echo "$script_path"
+}
+
 # 写入用户配置
 # Write user configuration
 write_user_config() {
@@ -325,7 +468,6 @@ write_user_config() {
     mkdir -p "$CLAUDE_DIR"
     
     # 初始化配置文件（如果不存在）
-    # Initialize configuration file if it doesn't exist
     if [[ ! -f "$CCS_CONFIG_FILE" ]]; then
         cat > "$CCS_CONFIG_FILE" << 'EOF'
 # CCS Configuration File
@@ -673,6 +815,7 @@ show_help_zh() {
     echo -e "  ${GREEN}ccs rename|ren|mv <旧名称> <新名称>${NC}          - 重命名配置"
     echo -e "  ${GREEN}ccs template [配置名称]${NC}                     - 将配置设为模板（默认使用当前配置）"
     echo -e "  ${GREEN}ccs modify <配置名称> <密钥> <地址>${NC}          - 修改配置的密钥和地址（仅非激活配置）"
+    echo -e "  ${GREEN}ccs update${NC}                                 - 更新脚本到最新版本"
     echo -e "  ${GREEN}ccs uninstall${NC}                              - 卸载 CCS 工具"
     echo -e "  ${GREEN}ccs version${NC}                                - 显示版本信息"
     echo -e "  ${GREEN}ccs help${NC}                                   - 显示此帮助信息"
@@ -681,6 +824,7 @@ show_help_zh() {
     echo -e "  ${CYAN}ccs template${NC}                          - 将当前配置设为模板"
     echo -e "  ${CYAN}ccs template work${NC}                     - 将 work 配置设为模板"
     echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - 修改 work 配置"
+    echo -e "  ${CYAN}ccs update${NC}                            - 检查并更新到最新版本"
     echo ""
     echo -e "${BOLD}配置文件说明:${NC}"
     local naming_convention=$(get_cached_config "naming_convention")
@@ -747,6 +891,7 @@ show_help_en() {
     echo -e "  ${GREEN}ccs rename|ren|mv <old> <new>${NC}               - Rename configuration"
     echo -e "  ${GREEN}ccs template [config_name]${NC}                  - Set configuration as template (default: current config)"
     echo -e "  ${GREEN}ccs modify <config_name> <key> <url>${NC}        - Modify configuration API key and base URL (non-active only)"
+    echo -e "  ${GREEN}ccs update${NC}                                 - Update script to latest version"
     echo -e "  ${GREEN}ccs uninstall${NC}                               - Uninstall CCS tool"
     echo -e "  ${GREEN}ccs version${NC}                                 - Show version information"
     echo -e "  ${GREEN}ccs help${NC}                                    - Show this help"
@@ -755,6 +900,7 @@ show_help_en() {
     echo -e "  ${CYAN}ccs template${NC}                            - Set current configuration as template"
     echo -e "  ${CYAN}ccs template work${NC}                       - Set work configuration as template"
     echo -e "  ${CYAN}ccs modify work sk-new https://api.anthropic.com${NC} - Modify work configuration"
+    echo -e "  ${CYAN}ccs update${NC}                            - Check for updates and update if available"
     echo ""
     echo -e "${BOLD}Configuration files:${NC}"
     local naming_convention=$(get_cached_config "naming_convention")
@@ -1616,6 +1762,444 @@ modify_config() {
     fi
 }
 
+# 检查是否有可用更新
+# Check if updates are available
+check_for_updates() {
+    local lang="$1"
+    local silent="${2:-false}"  # 静默模式，只返回状态
+    local temp_file_var="$3"    # 可选，用于返回临时文件路径
+    
+    if [[ "$silent" != "true" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${BOLD}${BLUE}${ICON_INFO} Checking updates...${NC}"
+        else
+            echo -e "${BOLD}${BLUE}${ICON_INFO} 检查更新...${NC}"
+        fi
+    fi
+    
+    local current_version="$CCS_VERSION"
+    local latest_version
+    local need_download=false
+    
+    # 第一阶段：快速版本检查（从GitHub API）
+    latest_version=$(get_latest_version_info "$lang")
+    
+    if [[ "$latest_version" == "unknown" ]]; then
+        # GitHub API不可用，需要下载文件检查
+        need_download=true
+        if [[ "$silent" != "true" ]]; then
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${YELLOW}${ICON_WARNING} API unavailable, downloading...${NC}"
+            else
+                echo -e "${YELLOW}${ICON_WARNING} API 不可用，正在下载...${NC}"
+            fi
+        fi
+    else
+        # 先进行快速比较
+        compare_versions "$current_version" "$latest_version"
+        local quick_comparison_result=$?
+        
+        if [[ $quick_comparison_result -eq 0 ]]; then
+            # 版本相同，无需更新，也无需下载
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${GREEN}${ICON_SUCCESS} Already latest version${NC}"
+                    echo -e "  ${ICON_ARROW} Version: ${GREEN}v$current_version${NC}"
+                else
+                    echo -e "${GREEN}${ICON_SUCCESS} 已是最新版本${NC}"
+                    echo -e "  ${ICON_ARROW} 版本: ${GREEN}v$current_version${NC}"
+                fi
+            fi
+            return 3  # 已是最新
+        else
+            # 版本不同，需要下载文件进行精确检查和准备更新
+            need_download=true
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${BLUE}${ICON_INFO} Version differs, downloading...${NC}"
+                else
+                    echo -e "${BLUE}${ICON_INFO} 版本不同，正在下载...${NC}"
+                fi
+            fi
+        fi
+    fi
+    
+    # 第二阶段：下载文件进行精确检查（仅在需要时）
+    if [[ "$need_download" == "true" ]]; then
+        local temp_file
+        local downloaded_version
+        downloaded_version=$(get_latest_version "$lang" "temp_file")
+        local get_version_result=$?
+        
+        if [[ $get_version_result -ne 0 ]]; then
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${RED}${ICON_ERROR} Update check failed${NC}"
+                else
+                    echo -e "${RED}${ICON_ERROR} 检查更新失败${NC}"
+                fi
+            fi
+            return 1
+        fi
+        
+        # 使用从下载文件中提取的版本号
+        latest_version="$downloaded_version"
+        
+        # 通过变量名返回临时文件路径
+        if [[ -n "$temp_file_var" && -n "$temp_file" ]]; then
+            eval "$temp_file_var='$temp_file'"
+        fi
+        
+        # 重新比较版本（使用下载文件中的版本号）
+        compare_versions "$current_version" "$latest_version"
+        local comparison_result=$?
+        
+        if [[ $comparison_result -eq 2 ]]; then
+            # 当前版本 < 最新版本，有更新
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${GREEN}${ICON_SUCCESS} Update available!${NC}"
+                    echo -e "  ${ICON_ARROW} Current: ${YELLOW}v$current_version${NC}"
+                    echo -e "  ${ICON_ARROW} Latest:  ${GREEN}v$latest_version${NC}"
+                else
+                    echo -e "${GREEN}${ICON_SUCCESS} 发现可用更新！${NC}"
+                    echo -e "  ${ICON_ARROW} 当前: ${YELLOW}v$current_version${NC}"
+                    echo -e "  ${ICON_ARROW} 最新: ${GREEN}v$latest_version${NC}"
+                fi
+            fi
+            return 0  # 有更新
+        elif [[ $comparison_result -eq 1 ]]; then
+            # 当前版本 > 最新版本，开发版本
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${YELLOW}${ICON_WARNING} Running development version${NC}"
+                    echo -e "  ${ICON_ARROW} Current: ${YELLOW}v$current_version${NC}"
+                    echo -e "  ${ICON_ARROW} Stable:  ${GREEN}v$latest_version${NC}"
+                else
+                    echo -e "${YELLOW}${ICON_WARNING} 运行开发版本${NC}"
+                    echo -e "  ${ICON_ARROW} 当前: ${YELLOW}v$current_version${NC}"
+                    echo -e "  ${ICON_ARROW} 稳定: ${GREEN}v$latest_version${NC}"
+                fi
+            fi
+            return 2  # 开发版本
+        else
+            # 当前版本 == 最新版本，已是最新
+            if [[ "$silent" != "true" ]]; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${GREEN}${ICON_SUCCESS} Already latest version${NC}"
+                    echo -e "  ${ICON_ARROW} Version: ${GREEN}v$current_version${NC}"
+                else
+                    echo -e "${GREEN}${ICON_SUCCESS} 已是最新版本${NC}"
+                    echo -e "  ${ICON_ARROW} 版本: ${GREEN}v$current_version${NC}"
+                fi
+            fi
+            # 如果已是最新版本，清理临时文件
+            if [[ -n "$temp_file" && -f "$temp_file" ]]; then
+                rm -f "$temp_file"
+                if [[ -n "$temp_file_var" ]]; then
+                    eval "$temp_file_var=''"
+                fi
+            fi
+            return 3  # 已是最新
+        fi
+    fi
+}
+
+# 自动更新脚本（简化版）
+# Auto update script (simplified)
+update_script() {
+    local lang="$1"
+    
+    display_title "CCS 自动更新 / CCS Auto Update"
+    echo ""
+    
+    # 检查更新
+    if [[ "$lang" == "en" ]]; then
+        echo -e "${BOLD}${BLUE}${ICON_INFO} Checking for updates...${NC}"
+    else
+        echo -e "${BOLD}${BLUE}${ICON_INFO} 检查更新...${NC}"
+    fi
+    
+    local current_version="$CCS_VERSION"
+    local remote_version
+    
+    # 从 CDN 获取远程版本
+    remote_version=$(get_remote_version)
+    
+    if [[ $? -ne 0 || -z "$remote_version" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Failed to check remote version${NC}"
+        else
+            echo -e "${RED}${ICON_ERROR} 检查远程版本失败${NC}"
+        fi
+        return 1
+    fi
+    
+    # 比较版本
+    compare_versions "$current_version" "$remote_version"
+    local comparison_result=$?
+    
+    if [[ $comparison_result -eq 0 ]]; then
+        # 版本相同，已是最新
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${GREEN}${ICON_SUCCESS} Already up to date!${NC}"
+            echo -e "  ${ICON_ARROW} Current version: ${GREEN}v$current_version${NC}"
+        else
+            echo -e "${GREEN}${ICON_SUCCESS} 已是最新版本！${NC}"
+            echo -e "  ${ICON_ARROW} 当前版本: ${GREEN}v$current_version${NC}"
+        fi
+        return 0
+    elif [[ $comparison_result -eq 1 ]]; then
+        # 当前版本 > 远程版本，开发版本
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${YELLOW}${ICON_WARNING} Running development version${NC}"
+            echo -e "  ${ICON_ARROW} Current: ${YELLOW}v$current_version${NC}"
+            echo -e "  ${ICON_ARROW} Stable:  ${GREEN}v$remote_version${NC}"
+            echo ""
+            echo -e "${ICON_INFO} You can downgrade to stable version if needed."
+        else
+            echo -e "${YELLOW}${ICON_WARNING} 运行开发版本${NC}"
+            echo -e "  ${ICON_ARROW} 当前: ${YELLOW}v$current_version${NC}"
+            echo -e "  ${ICON_ARROW} 稳定: ${GREEN}v$remote_version${NC}"
+            echo ""
+            echo -e "${ICON_INFO} 如需要，您可以降级到稳定版本。"
+        fi
+    else
+        # 当前版本 < 远程版本，有更新
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${GREEN}${ICON_SUCCESS} Update available!${NC}"
+            echo -e "  ${ICON_ARROW} Current: ${YELLOW}v$current_version${NC}"
+            echo -e "  ${ICON_ARROW} Latest:  ${GREEN}v$remote_version${NC}"
+        else
+            echo -e "${GREEN}${ICON_SUCCESS} 发现可用更新！${NC}"
+            echo -e "  ${ICON_ARROW} 当前: ${YELLOW}v$current_version${NC}"
+            echo -e "  ${ICON_ARROW} 最新: ${GREEN}v$remote_version${NC}"
+        fi
+    fi
+    
+    echo ""
+    # 询问用户是否更新
+    if ! confirm_update "$lang" \
+        "Do you want to update now?" \
+        "是否现在更新？"; then
+        show_message "$lang" "Update cancelled" "更新已取消"
+        return 0
+    fi
+    
+    # 用户确认后，下载更新文件
+    if [[ "$lang" == "en" ]]; then
+        echo -e "${BLUE}${ICON_INFO} Downloading update...${NC}"
+    else
+        echo -e "${BLUE}${ICON_INFO} 正在下载更新...${NC}"
+    fi
+    
+    local temp_file
+    temp_file=$(download_remote_file)
+    if [[ $? -ne 0 || -z "$temp_file" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Download failed${NC}"
+        else
+            echo -e "${RED}${ICON_ERROR} 下载失败${NC}"
+        fi
+        return 1
+    fi
+    
+    # 获取脚本路径
+    local script_path=$(get_script_path)
+    if [[ -z "$script_path" || ! -f "$script_path" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Script not found${NC}"
+        else
+            echo -e "${RED}${ICON_ERROR} 脚本未找到${NC}"
+        fi
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    # 检查是否需要sudo权限
+    local need_sudo=false
+    if [[ ! -w "$script_path" ]]; then
+        need_sudo=true
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${ICON_INFO} Admin privileges required"
+        else
+            echo -e "${ICON_INFO} 需要管理员权限"
+        fi
+    fi
+    
+    # 备份当前脚本
+    if [[ "$lang" == "en" ]]; then
+        echo "Creating backup..."
+    else
+        echo "正在备份..."
+    fi
+    
+    local backup_path="${script_path}${SCRIPT_BACKUP_SUFFIX}"
+    if ! cp "$script_path" "$backup_path" 2>/dev/null; then
+        if [[ "$need_sudo" == "true" ]]; then
+            if ! sudo cp "$script_path" "$backup_path"; then
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${RED}${ICON_ERROR} Backup failed${NC}"
+                else
+                    echo -e "${RED}${ICON_ERROR} 备份失败${NC}"
+                fi
+                rm -f "$temp_file"
+                return 1
+            fi
+        else
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${RED}${ICON_ERROR} Backup failed${NC}"
+            else
+                echo -e "${RED}${ICON_ERROR} 备份失败${NC}"
+            fi
+            rm -f "$temp_file"
+            return 1
+        fi
+    fi
+    
+    if [[ "$lang" == "en" ]]; then
+        echo -e "${GREEN}Backup created: $backup_path${NC}"
+        echo ""
+        echo "Installing update..."
+    else
+        echo -e "${GREEN}已备份: $backup_path${NC}"
+        echo ""
+        echo "正在安装更新..."
+    fi
+    
+    # 使用预下载的临时文件进行更新
+    if [[ "$need_sudo" == "true" ]]; then
+        # 需要sudo权限
+        if sudo cp "$temp_file" "$script_path" && sudo chmod +x "$script_path"; then
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${GREEN}${ICON_SUCCESS} Update completed successfully!${NC}"
+                echo -e "  ${ICON_ARROW} Backup: ${YELLOW}$backup_path${NC}"
+                echo ""
+                echo -e "${ICON_INFO} Run ${GREEN}'ccs version'${NC} to verify"
+            else
+                echo -e "${GREEN}${ICON_SUCCESS} 更新完成！${NC}"
+                echo -e "  ${ICON_ARROW} 备份: ${YELLOW}$backup_path${NC}"
+                echo ""
+                echo -e "${ICON_INFO} 运行 ${GREEN}'ccs version'${NC} 验证版本"
+            fi
+            rm -f "$temp_file"
+            return 0
+        else
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${RED}${ICON_ERROR} Update failed${NC}"
+                echo -e "${ICON_INFO} Backup available at: $backup_path"
+            else
+                echo -e "${RED}${ICON_ERROR} 更新失败${NC}"
+                echo -e "${ICON_INFO} 备份文件位于: $backup_path"
+            fi
+            rm -f "$temp_file"
+            return 1
+        fi
+    else
+        # 不需要sudo权限
+        if cp "$temp_file" "$script_path" && chmod +x "$script_path"; then
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${GREEN}${ICON_SUCCESS} Update completed successfully!${NC}"
+                echo -e "  ${ICON_ARROW} Backup saved at: ${YELLOW}$backup_path${NC}"
+                echo ""
+                echo -e "${ICON_INFO} Run ${GREEN}'ccs version'${NC} to verify the new version"
+            else
+                echo -e "${GREEN}${ICON_SUCCESS} 更新完成！${NC}"
+                echo -e "  ${ICON_ARROW} 备份保存在: ${YELLOW}$backup_path${NC}"
+                echo ""
+                echo -e "${ICON_INFO} 运行 ${GREEN}'ccs version'${NC} 验证新版本"
+            fi
+            rm -f "$temp_file"
+            return 0
+        else
+            if [[ "$lang" == "en" ]]; then
+                echo -e "${RED}${ICON_ERROR} Update failed${NC}"
+                echo -e "${ICON_INFO} Backup available at: $backup_path"
+            else
+                echo -e "${RED}${ICON_ERROR} 更新失败${NC}"
+                echo -e "${ICON_INFO} 备份文件位于: $backup_path"
+            fi
+            rm -f "$temp_file"
+            return 1
+        fi
+    fi
+}
+
+# 回滚到备份版本
+# Rollback to backup version
+rollback_script() {
+    local lang="$1"
+    
+    # 获取脚本路径
+    # Get script path
+    local script_path=$(get_script_path)
+    if [[ -z "$script_path" || ! -f "$script_path" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Cannot locate current script file${NC}"
+        else
+            echo -e "${RED}${ICON_ERROR} 无法定位当前脚本文件${NC}"
+        fi
+        return 1
+    fi
+    
+    local backup_path="${script_path}${SCRIPT_BACKUP_SUFFIX}"
+    
+    # 检查备份文件是否存在
+    # Check if backup file exists
+    if [[ ! -f "$backup_path" ]]; then
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} No backup file found${NC}"
+            echo -e "${ICON_INFO} Expected backup location: $backup_path"
+        else
+            echo -e "${RED}${ICON_ERROR} 未找到备份文件${NC}"
+            echo -e "${ICON_INFO} 预期备份位置: $backup_path"
+        fi
+        return 1
+    fi
+    
+    # 用户确认
+    # User confirmation
+    if [[ "$lang" == "en" ]]; then
+        echo -e "${YELLOW}${ICON_WARNING} This will restore the script to its previous version${NC}"
+        echo -e "${ICON_INFO} Current script: $script_path"
+        echo -e "${ICON_INFO} Backup file: $backup_path"
+        echo ""
+    else
+        echo -e "${YELLOW}${ICON_WARNING} 这将恢复脚本到之前的版本${NC}"
+        echo -e "${ICON_INFO} 当前脚本: $script_path"
+        echo -e "${ICON_INFO} 备份文件: $backup_path"
+        echo ""
+    fi
+    
+    if ! confirm_action "$lang" \
+        "Do you want to continue with the rollback?" \
+        "是否继续回滚操作？"; then
+        show_message "$lang" "Rollback cancelled" "回滚已取消"
+        return 0
+    fi
+    
+    # 执行回滚
+    # Perform rollback
+    if cp "$backup_path" "$script_path"; then
+        chmod +x "$script_path"
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${GREEN}${ICON_SUCCESS} Rollback completed successfully${NC}"
+            echo -e "${ICON_INFO} Script has been restored to the previous version"
+        else
+            echo -e "${GREEN}${ICON_SUCCESS} 回滚完成${NC}"
+            echo -e "${ICON_INFO} 脚本已恢复到之前的版本"
+        fi
+        return 0
+    else
+        if [[ "$lang" == "en" ]]; then
+            echo -e "${RED}${ICON_ERROR} Rollback failed${NC}"
+        else
+            echo -e "${RED}${ICON_ERROR} 回滚失败${NC}"
+        fi
+        return 1
+    fi
+}
+
 # 卸载 CCS 工具
 # Uninstall CCS tool
 uninstall_ccs() {
@@ -2024,6 +2608,43 @@ case "$1" in
         # 卸载 CCS 工具
         # Uninstall CCS tool
         uninstall_ccs
+        ;;
+    "update")
+        # 更新脚本
+        # Update script
+        lang=$(get_language)
+        case "$2" in
+            "--rollback"|"-r")
+                # 回滚到备份版本
+                # Rollback to backup version
+                rollback_script "$lang"
+                ;;
+            "")
+                # 默认更新行为：检查并更新
+                # Default update behavior: check and update
+                update_script "$lang"
+                ;;
+            *)
+                # 无效的子命令
+                # Invalid subcommand
+                if [[ "$lang" == "en" ]]; then
+                    echo -e "${RED}${ICON_ERROR} Unknown update option: ${BOLD}$2${NC}"
+                    echo ""
+                    echo "Usage: ccs update [option]"
+                    echo "Options:"
+                    echo "  (none)           Check for updates and update if confirmed"
+                    echo "  --rollback, -r   Rollback to previous version"
+                else
+                    echo -e "${RED}${ICON_ERROR} 未知更新选项: ${BOLD}$2${NC}"
+                    echo ""
+                    echo "用法: ccs update [选项]"
+                    echo "选项:"
+                    echo "  (无)             检查更新并在确认后更新"
+                    echo "  --rollback, -r   回滚到之前的版本"
+                fi
+                exit 1
+                ;;
+        esac
         ;;
     "version"|"-v"|"--version")
         # 显示版本信息
