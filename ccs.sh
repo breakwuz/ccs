@@ -6,7 +6,19 @@
 
 # 版本信息
 # Version information
-CCS_VERSION="1.0.0"
+CCS_VERSION="1.1.0"
+
+# 界面常量 (UI Constants)
+TITLE_WIDTH=60
+API_INFO_LONG_THRESHOLD=22
+API_INFO_MEDIUM_THRESHOLD=16
+API_INFO_SHORT_THRESHOLD=10
+
+# 返回状态码常量 (Return Code Constants)
+STATUS_SUCCESS=0
+STATUS_ERROR=1
+STATUS_DEV_VERSION=2
+STATUS_LATEST=3
 
 # 常量定义
 # Constants
@@ -14,7 +26,6 @@ DEFAULT_LANGUAGE="zh"
 DEFAULT_NAMING_CONVENTION="suffix"  # "suffix" for settings.json.<name>, "prefix" for settings-<name>.json
 ANTHROPIC_API_KEY_FIELD="ANTHROPIC_API_KEY"
 ANTHROPIC_BASE_URL_FIELD="ANTHROPIC_BASE_URL"
-SETTINGS_FILE_PATTERN="settings-.*\.json"
 API_KEY_PLACEHOLDER="your_api_key_here"
 BASE_URL_PLACEHOLDER="your_base_url_here"
 REPOSITORY_URL="https://github.com/shuiyihan12/ccs"
@@ -73,16 +84,6 @@ ICON_WARNING="⚠️"
 ICON_ERROR="❌"
 ICON_SUCCESS="✅"
 
-# 表格相关常量 (Table Constants)
-TABLE_BORDER_TOP="┌"
-TABLE_BORDER_BOTTOM="└"
-TABLE_BORDER_MIDDLE="├"
-TABLE_BORDER_RIGHT="┐"
-TABLE_BORDER_BOTTOM_RIGHT="┘"
-TABLE_BORDER_MIDDLE_RIGHT="┤"
-TABLE_HORIZONTAL="─"
-TABLE_VERTICAL="│"
-TABLE_CROSS="┼"
 
 # 全局变量缓存
 # Global variable cache
@@ -181,38 +182,38 @@ show_message() {
     fi
 }
 
-# 用户确认提示函数
-# User confirmation prompt function
-confirm_action() {
+# 通用的用户确认函数（合并confirm_action和confirm_update）
+# Generic user confirmation function (merged confirm_action and confirm_update)
+user_confirm() {
     local lang="$1"
     local en_prompt="$2"
     local zh_prompt="$3"
-    if [[ "$lang" == "en" ]]; then
-        read -p "$en_prompt (y/N): " -n 1 -r
+    local default_yes="${4:-false}"  # 默认为N，传入true则默认为Y
+    
+    local prompt_suffix
+    if [[ "$default_yes" == "true" ]]; then
+        prompt_suffix=" (Y/n): "
     else
-        read -p "$zh_prompt (y/N): " -n 1 -r
+        prompt_suffix=" (y/N): "
+    fi
+    
+    if [[ "$lang" == "en" ]]; then
+        read -p "$en_prompt$prompt_suffix" -n 1 -r
+    else
+        read -p "$zh_prompt$prompt_suffix" -n 1 -r
     fi
     echo
-    [[ $REPLY =~ ^[Yy]$ ]]
-}
-
-# 更新确认提示函数（默认Y）
-# Update confirmation prompt function (default Y)
-confirm_update() {
-    local lang="$1"
-    local en_prompt="$2"
-    local zh_prompt="$3"
-    if [[ "$lang" == "en" ]]; then
-        read -p "$en_prompt (Y/n): " -n 1 -r
+    
+    if [[ "$default_yes" == "true" ]]; then
+        # 默认为Y，只有明确输入n/N才拒绝
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            return 1
+        else
+            return 0
+        fi
     else
-        read -p "$zh_prompt (Y/n): " -n 1 -r
-    fi
-    echo
-    # 默认为Y，只有明确输入n/N才拒绝
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        return 1
-    else
-        return 0
+        # 默认为N，只有明确输入y/Y才接受
+        [[ $REPLY =~ ^[Yy]$ ]]
     fi
 }
 
@@ -363,24 +364,83 @@ compare_versions() {
     local v2_patch=${VER2[2]:-0}
     
     if [[ $v1_major -gt $v2_major ]]; then
-        return 1  # version1 > version2
+        return $STATUS_DEV_VERSION  # version1 > version2
     elif [[ $v1_major -lt $v2_major ]]; then
-        return 2  # version1 < version2
+        return $STATUS_ERROR  # version1 < version2
     elif [[ $v1_minor -gt $v2_minor ]]; then
-        return 1
+        return $STATUS_DEV_VERSION
     elif [[ $v1_minor -lt $v2_minor ]]; then
-        return 2
+        return $STATUS_ERROR
     elif [[ $v1_patch -gt $v2_patch ]]; then
-        return 1
+        return $STATUS_DEV_VERSION
     elif [[ $v1_patch -lt $v2_patch ]]; then
-        return 2
+        return $STATUS_ERROR
     fi
     
-    return 0  # version1 == version2
+    return $STATUS_SUCCESS  # version1 == version2
+}
+
+# 获取GitHub API版本信息（快速检查）
+# Get version info from GitHub API (quick check)
+get_latest_version_info() {
+    local lang="$1"
+    
+    # 检查curl是否可用
+    if ! command -v curl &> /dev/null; then
+        echo "unknown"
+        return 1
+    fi
+    
+    # 尝试从GitHub API获取最新版本
+    local latest_version
+    latest_version=$(curl -fsSL "$GITHUB_API_URL" 2>/dev/null | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+    
+    if [[ -z "$latest_version" ]]; then
+        echo "unknown"
+        return 1
+    fi
+    
+    # 移除v前缀
+    latest_version="${latest_version#v}"
+    echo "$latest_version"
+    return 0
+}
+
+# 获取并下载最新版本（精确检查）
+# Get and download latest version (precise check)
+get_latest_version() {
+    local lang="$1"
+    local temp_file_var="$2"
+    
+    # 下载远程文件到临时位置
+    local temp_file
+    temp_file=$(download_remote_file)
+    local download_result=$?
+    
+    if [[ $download_result -ne 0 || -z "$temp_file" ]]; then
+        return 1
+    fi
+    
+    # 从下载的文件中提取版本号
+    local remote_version
+    remote_version=$(grep '^CCS_VERSION=' "$temp_file" | head -1 | cut -d'"' -f2)
+    
+    if [[ -z "$remote_version" ]]; then
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    # 通过变量名返回临时文件路径
+    if [[ -n "$temp_file_var" ]]; then
+        eval "$temp_file_var='$temp_file'"
+    fi
+    
+    echo "$remote_version"
+    return 0
 }
 
 # 获取远程版本号（直接从CDN获取）
-# Get remote version (directly from CDN)
+# Get remote version (directly from CDN)  
 get_remote_version() {
     # 检查curl是否可用
     if ! command -v curl &> /dev/null; then
@@ -520,15 +580,14 @@ EOF
 # Beautiful title display function
 display_title() {
     local title="$1"
-    local width=60
     local title_length=${#title}
-    local total_padding=$((width - title_length))
+    local total_padding=$((TITLE_WIDTH - title_length))
     local left_padding=$((total_padding / 2))
     local right_padding=$((total_padding - left_padding))
     local line=""
     
     # 生成分隔线
-    for ((i=0; i<width; i++)); do
+    for ((i=0; i<TITLE_WIDTH; i++)); do
         line+="="
     done
     
@@ -681,15 +740,15 @@ sanitize_api_info() {
     
     # 脱敏处理：显示前12位和后10位，中间用星号代替
     # Sanitize: show first 12 and last 10 characters, replace middle with asterisks
-    if [[ ${#info} -gt 22 ]]; then
+    if [[ ${#info} -gt $API_INFO_LONG_THRESHOLD ]]; then
         local prefix="${info:0:12}"
         local suffix="${info: -10}"
         echo "${prefix}****${suffix}"
-    elif [[ ${#info} -gt 16 ]]; then
+    elif [[ ${#info} -gt $API_INFO_MEDIUM_THRESHOLD ]]; then
         local prefix="${info:0:6}"
         local suffix="${info: -4}"
         echo "${prefix}****${suffix}"
-    elif [[ ${#info} -gt 10 ]]; then
+    elif [[ ${#info} -gt $API_INFO_SHORT_THRESHOLD ]]; then
         local prefix="${info:0:4}"
         local suffix="${info: -3}"
         echo "${prefix}***${suffix}"
@@ -709,96 +768,6 @@ truncate_text() {
     else
         echo "${text:0:$((max_length-3))}..."
     fi
-}
-
-# 格式化表格单元格
-# Format table cell with padding
-format_table_cell() {
-    local content="$1"
-    local width="$2"
-    local align="${3:-left}"  # left, right, center
-    
-    local content_length=${#content}
-    local padding=$((width - content_length))
-    
-    if [[ $padding -lt 0 ]]; then
-        padding=0
-        content=$(truncate_text "$content" "$width")
-    fi
-    
-    case "$align" in
-        "right")
-            printf "%*s%s" $padding "" "$content"
-            ;;
-        "center")
-            local left_pad=$((padding / 2))
-            local right_pad=$((padding - left_pad))
-            printf "%*s%s%*s" $left_pad "" "$content" $right_pad ""
-            ;;
-        *)  # left (default)
-            printf "%s%*s" "$content" $padding ""
-            ;;
-    esac
-}
-
-# 生成表格分隔线
-# Generate table separator line
-generate_table_separator() {
-    local col_widths=("$@")
-    local line=""
-    
-    line+="$TABLE_BORDER_MIDDLE"
-    for i in "${!col_widths[@]}"; do
-        for ((j=0; j<${col_widths[i]}+2; j++)); do
-            line+="$TABLE_HORIZONTAL"
-        done
-        if [[ $i -lt $((${#col_widths[@]} - 1)) ]]; then
-            line+="$TABLE_CROSS"
-        fi
-    done
-    line+="$TABLE_BORDER_MIDDLE_RIGHT"
-    
-    echo "$line"
-}
-
-# 生成表格顶部边框
-# Generate table top border
-generate_table_top_border() {
-    local col_widths=("$@")
-    local line=""
-    
-    line+="$TABLE_BORDER_TOP"
-    for i in "${!col_widths[@]}"; do
-        for ((j=0; j<${col_widths[i]}+2; j++)); do
-            line+="$TABLE_HORIZONTAL"
-        done
-        if [[ $i -lt $((${#col_widths[@]} - 1)) ]]; then
-            line+="$TABLE_CROSS"
-        fi
-    done
-    line+="$TABLE_BORDER_RIGHT"
-    
-    echo "$line"
-}
-
-# 生成表格底部边框
-# Generate table bottom border
-generate_table_bottom_border() {
-    local col_widths=("$@")
-    local line=""
-    
-    line+="$TABLE_BORDER_BOTTOM"
-    for i in "${!col_widths[@]}"; do
-        for ((j=0; j<${col_widths[i]}+2; j++)); do
-            line+="$TABLE_HORIZONTAL"
-        done
-        if [[ $i -lt $((${#col_widths[@]} - 1)) ]]; then
-            line+="$TABLE_CROSS"
-        fi
-    done
-    line+="$TABLE_BORDER_BOTTOM_RIGHT"
-    
-    echo "$line"
 }
 
 
@@ -1398,7 +1367,7 @@ add_config() {
     # 检查配置是否已存在，询问是否覆盖
     # Check if configuration already exists, ask for overwrite confirmation
     if [[ -f "$backup_file" ]]; then
-        if ! confirm_action "$lang" \
+        if ! user_confirm "$lang" \
             "Configuration '$name' already exists. Overwrite?" \
             "配置 '$name' 已存在。是否覆盖？"; then
             show_message "$lang" "Operation cancelled" "操作已取消"
@@ -1569,13 +1538,15 @@ set_template_config() {
     # Confirm operation
     if [[ "$lang" == "en" ]]; then
         echo "This will create a new template file from the specified configuration."
-        if [[ -f "$DEFAULT_FILE" ]]; then
+        local default_file_path="$(get_default_file_path)"
+        if [[ -f "$default_file_path" ]]; then
             echo "Warning: This will overwrite the existing template file."
         fi
         read -p "Continue? (y/N): " -n 1 -r
     else
         echo "这将从指定的配置创建新的模板文件。"
-        if [[ -f "$DEFAULT_FILE" ]]; then
+        local default_file_path="$(get_default_file_path)"
+        if [[ -f "$default_file_path" ]]; then
             echo "警告：这将覆盖现有的模板文件。"
         fi
         read -p "继续？(y/N): " -n 1 -r
@@ -1733,7 +1704,7 @@ modify_config() {
     [[ -n "$base_url" ]] && echo "  New Base URL: $base_url"
     echo ""
     
-    if ! confirm_action "$lang" "Apply these changes?" "应用这些更改？"; then
+    if ! user_confirm "$lang" "Apply these changes?" "应用这些更改？"; then
         show_message "$lang" "Operation cancelled" "操作已取消"
         return 1
     fi
@@ -1799,7 +1770,7 @@ check_for_updates() {
         compare_versions "$current_version" "$latest_version"
         local quick_comparison_result=$?
         
-        if [[ $quick_comparison_result -eq 0 ]]; then
+        if [[ $quick_comparison_result -eq $STATUS_SUCCESS ]]; then
             # 版本相同，无需更新，也无需下载
             if [[ "$silent" != "true" ]]; then
                 if [[ "$lang" == "en" ]]; then
@@ -1810,7 +1781,7 @@ check_for_updates() {
                     echo -e "  ${ICON_ARROW} 版本: ${GREEN}v$current_version${NC}"
                 fi
             fi
-            return 3  # 已是最新
+            return $STATUS_LATEST  # 已是最新
         else
             # 版本不同，需要下载文件进行精确检查和准备更新
             need_download=true
@@ -1854,7 +1825,7 @@ check_for_updates() {
         compare_versions "$current_version" "$latest_version"
         local comparison_result=$?
         
-        if [[ $comparison_result -eq 2 ]]; then
+        if [[ $comparison_result -eq $STATUS_ERROR ]]; then
             # 当前版本 < 最新版本，有更新
             if [[ "$silent" != "true" ]]; then
                 if [[ "$lang" == "en" ]]; then
@@ -1867,8 +1838,8 @@ check_for_updates() {
                     echo -e "  ${ICON_ARROW} 最新: ${GREEN}v$latest_version${NC}"
                 fi
             fi
-            return 0  # 有更新
-        elif [[ $comparison_result -eq 1 ]]; then
+            return $STATUS_SUCCESS  # 有更新
+        elif [[ $comparison_result -eq $STATUS_DEV_VERSION ]]; then
             # 当前版本 > 最新版本，开发版本
             if [[ "$silent" != "true" ]]; then
                 if [[ "$lang" == "en" ]]; then
@@ -1881,7 +1852,7 @@ check_for_updates() {
                     echo -e "  ${ICON_ARROW} 稳定: ${GREEN}v$latest_version${NC}"
                 fi
             fi
-            return 2  # 开发版本
+            return $STATUS_DEV_VERSION  # 开发版本
         else
             # 当前版本 == 最新版本，已是最新
             if [[ "$silent" != "true" ]]; then
@@ -1900,7 +1871,7 @@ check_for_updates() {
                     eval "$temp_file_var=''"
                 fi
             fi
-            return 3  # 已是最新
+            return $STATUS_LATEST  # 已是最新
         fi
     fi
 }
@@ -1939,7 +1910,7 @@ update_script() {
     compare_versions "$current_version" "$remote_version"
     local comparison_result=$?
     
-    if [[ $comparison_result -eq 0 ]]; then
+    if [[ $comparison_result -eq $STATUS_SUCCESS ]]; then
         # 版本相同，已是最新
         if [[ "$lang" == "en" ]]; then
             echo -e "${GREEN}${ICON_SUCCESS} Already up to date!${NC}"
@@ -1949,7 +1920,7 @@ update_script() {
             echo -e "  ${ICON_ARROW} 当前版本: ${GREEN}v$current_version${NC}"
         fi
         return 0
-    elif [[ $comparison_result -eq 1 ]]; then
+    elif [[ $comparison_result -eq $STATUS_DEV_VERSION ]]; then
         # 当前版本 > 远程版本，开发版本
         if [[ "$lang" == "en" ]]; then
             echo -e "${YELLOW}${ICON_WARNING} Running development version${NC}"
@@ -1979,9 +1950,9 @@ update_script() {
     
     echo ""
     # 询问用户是否更新
-    if ! confirm_update "$lang" \
+    if ! user_confirm "$lang" \
         "Do you want to update now?" \
-        "是否现在更新？"; then
+        "是否现在更新？" "true"; then
         show_message "$lang" "Update cancelled" "更新已取消"
         return 0
     fi
@@ -2171,7 +2142,7 @@ rollback_script() {
         echo ""
     fi
     
-    if ! confirm_action "$lang" \
+    if ! user_confirm "$lang" \
         "Do you want to continue with the rollback?" \
         "是否继续回滚操作？"; then
         show_message "$lang" "Rollback cancelled" "回滚已取消"
